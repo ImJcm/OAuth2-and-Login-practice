@@ -17,7 +17,7 @@
 
 ## 목적
 oAuth1.0와 자체 로그인을 spring security를 사용하지 않고 구현한 경험이 있었지만, 이번 기회에 oAuth2.0와 자체 로그인을 Spring Security를 활용하여 구현해보는 것이 좋다고 생각하여 Repo를 만들게 되었다.
-더 나아가, 프로젝트에서 경험해보지 못한 refreshToken도 적용해볼 수 있도록 하였다.
+더 나아가, 프로젝트에서 경험해보지 못한 refreshToken도 적용해볼 수 있도록 할 계획이다.
 
 ## 프로젝트 기능 및 설계 ##
 - JWT 토큰 인증 방식과 Spring Security를 이용하여 oAuth2.0 + 자체 로그인을 구현한 Repo
