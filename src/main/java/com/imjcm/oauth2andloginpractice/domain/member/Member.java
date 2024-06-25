@@ -60,7 +60,7 @@ public class Member extends TimeStamped implements UserDetails {
     // 권한 반환
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("user"));
+        return List.of(new SimpleGrantedAuthority(this.role.getAuthority()));
     }
 
     // 사용자의 email 반환
