@@ -39,7 +39,6 @@ public class SecurityConfig {
     private final JwtService jwtService;
     private final LoginService loginService;
     private final MemberRepository memberRepository;
-    private final AuthenticationConfiguration authenticationConfiguration;
     private final PasswordEncoder passwordEncoder;
 
     /**
@@ -85,9 +84,8 @@ public class SecurityConfig {
     }
 
     /**
-     *
      *   JWT Authentication(인증)을 위한 Filter 설정
-     *   UsernamePasswordAuthenticationFilter를 상속받는다.
+     *   AuthenticationManager는 bean으로 등록한 authenticationManager()로 설정
      *   jwtService, ObjectMapper를 인자로 받는다
      *      - jwtService : jwt 토큰을 이용하기 위한 Service
      *      - ObjectMapper : username(email), password를 전달하여 JSON 형태로 매핑하기 위함
@@ -106,10 +104,12 @@ public class SecurityConfig {
 
     /**
      *  AuthenticationManager Bean 등록
-     *  AuthenticationManager에서 사용할 Provider를 지정 필요
-     *  PasswordEncoder를 사용하는 AuthenticationProvider 지정하고, DaoAuthenticationProvider를 사용
-     *  UserDetailsService로 loginService 사용
-     *  FormLogin과 동일하게 AuthenticationManager로 ProviderManager의 구현체인 DaoAuthenticationProvider 사용
+     *  AuthenticationManager로 사용할 ProviderManager와 인증 제공자로 사용할 AuthenticationProvider를 구현한 Provider를 지정하고 ProviderManager 반환
+     *      - ProviderManager는 AuthenticationManager를 구현
+     *      - Provider로 AuthenticationProvider를 구현한 DaoAuthentication를 설정
+     *      - Bean으로 등록한 PasswordEncoder를 provider가 사용할 수 있도록 설정
+     *      - UserDetailsService로 loginService 사용
+     *      - FormLogin과 동일하게 AuthenticationManager로 ProviderManager의 구현체인 DaoAuthenticationProvider를 사용
      */
     @Bean
     public AuthenticationManager authenticationManager() throws Exception {
