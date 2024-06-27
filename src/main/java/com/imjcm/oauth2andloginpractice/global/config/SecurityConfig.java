@@ -106,10 +106,9 @@ public class SecurityConfig {
 
     /**
      *  AuthenticationManager Bean 등록
-     *  AuthenticationManager에서 사용할 Provider를 지정 필요
-     *  PasswordEncoder를 사용하는 AuthenticationProvider 지정하고, DaoAuthenticationProvider를 사용
-     *  UserDetailsService로 loginService 사용
-     *  FormLogin과 동일하게 AuthenticationManager로 ProviderManager의 구현체인 DaoAuthenticationProvider 사용
+     *  AuthenticationManager로 사용할 Manager를 AuthenticationConfiguration에서 AuthenticationManager를 반환하여 사용
+     *  AuthenticationConfiguration 내부에서 PasswordEncoder Bean이 존재하는지 확인 후, PasswordEncoder로 설정
+     *  AuthenticationManagerBuilder를 생성한 후, publisher + config를 통해 AuthenticationProvider의 역할을 설정한다고 생각한다. <- 정확하지 않음
      */
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
