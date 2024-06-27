@@ -40,7 +40,6 @@ public class SecurityConfig {
     private final LoginService loginService;
     private final MemberRepository memberRepository;
     private final AuthenticationConfiguration authenticationConfiguration;
-    private final PasswordEncoder passwordEncoder;
 
     /**
      *  FormLogin : FormLogin 양식 사용 x
@@ -85,9 +84,10 @@ public class SecurityConfig {
     }
 
     /**
-     *
      *   JWT Authentication(인증)을 위한 Filter 설정
-     *   UsernamePasswordAuthenticationFilter를 상속받는다.
+     *   로그인 시, 인증을 하기위해서는 AuthenticationManager를 필요로 한다.
+     *   spring 6.x 부터 제공되는 AuthenticationConfiguration 사용하여 AuthenticationManager를 받아올 수 있도록 한다.
+     *   authenticationConfiguration은 인증을 위한 설정을 담고 있으며 AuthenticationManager로 사용될 수 있다.
      *   jwtService, ObjectMapper를 인자로 받는다
      *      - jwtService : jwt 토큰을 이용하기 위한 Service
      *      - ObjectMapper : username(email), password를 전달하여 JSON 형태로 매핑하기 위함
@@ -98,7 +98,7 @@ public class SecurityConfig {
     public CustomJsonUsernamePasswordAuthenticationFilter customJsonUsernamePasswordAuthenticationFilter() throws Exception {
         CustomJsonUsernamePasswordAuthenticationFilter customJsonUsernamePasswordAuthenticationFilter
                 = new CustomJsonUsernamePasswordAuthenticationFilter(jwtService, objectMapper);
-        customJsonUsernamePasswordAuthenticationFilter.setAuthenticationManager(authenticationManager());
+        customJsonUsernamePasswordAuthenticationFilter.setAuthenticationManager(authenticationManager(authenticationConfiguration));
         customJsonUsernamePasswordAuthenticationFilter.setAuthenticationSuccessHandler(loginSuccessHandler());
         customJsonUsernamePasswordAuthenticationFilter.setAuthenticationFailureHandler(loginFailureHandler());
         return customJsonUsernamePasswordAuthenticationFilter;
@@ -112,11 +112,8 @@ public class SecurityConfig {
      *  FormLogin과 동일하게 AuthenticationManager로 ProviderManager의 구현체인 DaoAuthenticationProvider 사용
      */
     @Bean
-    public AuthenticationManager authenticationManager() throws Exception {
-        DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider();
-        daoAuthenticationProvider.setPasswordEncoder(passwordEncoder);
-        daoAuthenticationProvider.setUserDetailsService(loginService);
-        return new ProviderManager(daoAuthenticationProvider);
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+        return authenticationConfiguration.getAuthenticationManager();
     }
 
     /**
