@@ -39,7 +39,7 @@ public class SecurityConfig {
     private final JwtService jwtService;
     private final LoginService loginService;
     private final MemberRepository memberRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final AuthenticationConfiguration authenticationConfiguration;
 
     /**
      *  FormLogin : FormLogin 양식 사용 x
@@ -85,7 +85,9 @@ public class SecurityConfig {
 
     /**
      *   JWT Authentication(인증)을 위한 Filter 설정
-     *   AuthenticationManager는 bean으로 등록한 authenticationManager()로 설정
+     *   로그인 시, 인증을 하기위해서는 AuthenticationManager를 필요로 한다.
+     *   spring 6.x 부터 제공되는 AuthenticationConfiguration 사용하여 AuthenticationManager를 받아올 수 있도록 한다.
+     *   authenticationConfiguration은 인증을 위한 설정을 담고 있으며 AuthenticationManager로 사용될 수 있다.
      *   jwtService, ObjectMapper를 인자로 받는다
      *      - jwtService : jwt 토큰을 이용하기 위한 Service
      *      - ObjectMapper : username(email), password를 전달하여 JSON 형태로 매핑하기 위함
@@ -96,7 +98,7 @@ public class SecurityConfig {
     public CustomJsonUsernamePasswordAuthenticationFilter customJsonUsernamePasswordAuthenticationFilter() throws Exception {
         CustomJsonUsernamePasswordAuthenticationFilter customJsonUsernamePasswordAuthenticationFilter
                 = new CustomJsonUsernamePasswordAuthenticationFilter(jwtService, objectMapper);
-        customJsonUsernamePasswordAuthenticationFilter.setAuthenticationManager(authenticationManager());
+        customJsonUsernamePasswordAuthenticationFilter.setAuthenticationManager(authenticationManager(authenticationConfiguration));
         customJsonUsernamePasswordAuthenticationFilter.setAuthenticationSuccessHandler(loginSuccessHandler());
         customJsonUsernamePasswordAuthenticationFilter.setAuthenticationFailureHandler(loginFailureHandler());
         return customJsonUsernamePasswordAuthenticationFilter;
@@ -104,19 +106,13 @@ public class SecurityConfig {
 
     /**
      *  AuthenticationManager Bean 등록
-     *  AuthenticationManager로 사용할 ProviderManager와 인증 제공자로 사용할 AuthenticationProvider를 구현한 Provider를 지정하고 ProviderManager 반환
-     *      - ProviderManager는 AuthenticationManager를 구현
-     *      - Provider로 AuthenticationProvider를 구현한 DaoAuthentication를 설정
-     *      - Bean으로 등록한 PasswordEncoder를 provider가 사용할 수 있도록 설정
-     *      - UserDetailsService로 loginService 사용
-     *      - FormLogin과 동일하게 AuthenticationManager로 ProviderManager의 구현체인 DaoAuthenticationProvider를 사용
+     *  AuthenticationManager로 사용할 Manager를 AuthenticationConfiguration에서 AuthenticationManager를 반환하여 사용
+     *  AuthenticationConfiguration 내부에서 PasswordEncoder Bean이 존재하는지 확인 후, PasswordEncoder로 설정
+     *  AuthenticationManagerBuilder를 생성한 후, publisher + config를 통해 AuthenticationProvider의 역할을 설정한다고 생각한다. <- 정확하지 않음
      */
     @Bean
-    public AuthenticationManager authenticationManager() throws Exception {
-        DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider();
-        daoAuthenticationProvider.setPasswordEncoder(passwordEncoder);
-        daoAuthenticationProvider.setUserDetailsService(loginService);
-        return new ProviderManager(daoAuthenticationProvider);
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+        return authenticationConfiguration.getAuthenticationManager();
     }
 
     /**
