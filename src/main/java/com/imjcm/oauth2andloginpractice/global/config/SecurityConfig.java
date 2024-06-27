@@ -15,11 +15,14 @@ import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -37,6 +40,7 @@ public class SecurityConfig {
     private final LoginService loginService;
     private final MemberRepository memberRepository;
     private final AuthenticationConfiguration authenticationConfiguration;
+    private final PasswordEncoder passwordEncoder;
 
     /**
      *  FormLogin : FormLogin 양식 사용 x
@@ -94,18 +98,25 @@ public class SecurityConfig {
     public CustomJsonUsernamePasswordAuthenticationFilter customJsonUsernamePasswordAuthenticationFilter() throws Exception {
         CustomJsonUsernamePasswordAuthenticationFilter customJsonUsernamePasswordAuthenticationFilter
                 = new CustomJsonUsernamePasswordAuthenticationFilter(jwtService, objectMapper);
-        customJsonUsernamePasswordAuthenticationFilter.setAuthenticationManager(authenticationManager(authenticationConfiguration));
+        customJsonUsernamePasswordAuthenticationFilter.setAuthenticationManager(authenticationManager());
         customJsonUsernamePasswordAuthenticationFilter.setAuthenticationSuccessHandler(loginSuccessHandler());
         customJsonUsernamePasswordAuthenticationFilter.setAuthenticationFailureHandler(loginFailureHandler());
         return customJsonUsernamePasswordAuthenticationFilter;
     }
 
     /**
-     *  Authentication Configuration을 설정 관리를 위한 Authentication Manager를 반환
+     *  AuthenticationManager Bean 등록
+     *  AuthenticationManager에서 사용할 Provider를 지정 필요
+     *  PasswordEncoder를 사용하는 AuthenticationProvider 지정하고, DaoAuthenticationProvider를 사용
+     *  UserDetailsService로 loginService 사용
+     *  FormLogin과 동일하게 AuthenticationManager로 ProviderManager의 구현체인 DaoAuthenticationProvider 사용
      */
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
-        return authenticationConfiguration.getAuthenticationManager();
+    public AuthenticationManager authenticationManager() throws Exception {
+        DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider();
+        daoAuthenticationProvider.setPasswordEncoder(passwordEncoder);
+        daoAuthenticationProvider.setUserDetailsService(loginService);
+        return new ProviderManager(daoAuthenticationProvider);
     }
 
     /**
