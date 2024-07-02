@@ -91,6 +91,10 @@ public class SecurityConfig {
      *   jwtService, ObjectMapper를 인자로 받는다
      *      - jwtService : jwt 토큰을 이용하기 위한 Service
      *      - ObjectMapper : username(email), password를 전달하여 JSON 형태로 매핑하기 위함
+     *   AuthenticationFilter를 적용할 url을 설정한다. (url = "/api/member/login")
+     *      - UsernamePasswordAuthenticationFilter의 default Url = (/login, POST)
+     *      - setFilterProcessesUrl()로 지정할 경우, url만 지정, Method = null로 설정됨.
+     *          - login의 경우, POST만 넘어오는 경우가 암묵적으로 정해진 룰이라고 생각한다.
      *   로그인 성공 시, Bean으로 등록한 LoginSuccessHandler를 지정
      *   로그인 실패 시, Bean으로 등록한 LoginFailureHandler를 지정
      */
@@ -98,6 +102,7 @@ public class SecurityConfig {
     public CustomJsonUsernamePasswordAuthenticationFilter customJsonUsernamePasswordAuthenticationFilter() throws Exception {
         CustomJsonUsernamePasswordAuthenticationFilter customJsonUsernamePasswordAuthenticationFilter
                 = new CustomJsonUsernamePasswordAuthenticationFilter(jwtService, objectMapper);
+        customJsonUsernamePasswordAuthenticationFilter.setFilterProcessesUrl("/api/member/login");
         customJsonUsernamePasswordAuthenticationFilter.setAuthenticationManager(authenticationManager(authenticationConfiguration));
         customJsonUsernamePasswordAuthenticationFilter.setAuthenticationSuccessHandler(loginSuccessHandler());
         customJsonUsernamePasswordAuthenticationFilter.setAuthenticationFailureHandler(loginFailureHandler());
