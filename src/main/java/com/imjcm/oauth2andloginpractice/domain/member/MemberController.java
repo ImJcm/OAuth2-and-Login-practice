@@ -18,11 +18,11 @@ import org.springframework.web.bind.annotation.*;
 public class MemberController {
     private final MemberService memberService;
 
-    @PostMapping("/login")
+    /*@PostMapping("/login")
     public ResponseEntity<ApiResponseDto> login(@RequestBody LoginRequestDto loginRequestDto, HttpServletResponse response) {
         ApiResponseDto apiResponseDto = memberService.login(loginRequestDto, response);
         return ResponseEntity.ok().body(apiResponseDto);
-    }
+    }*/
 
     @PostMapping("/signup")
     public ResponseEntity<ApiResponseDto> signup(@RequestBody SignupRequestDto signupRequestDto) {
