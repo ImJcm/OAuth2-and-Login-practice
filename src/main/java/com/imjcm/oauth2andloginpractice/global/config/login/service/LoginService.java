@@ -1,5 +1,6 @@
 package com.imjcm.oauth2andloginpractice.global.config.login.service;
 
+import com.imjcm.oauth2andloginpractice.domain.member.Member;
 import com.imjcm.oauth2andloginpractice.domain.member.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -28,7 +29,7 @@ public class LoginService implements UserDetailsService {
     *   Member Entity를 UserDetails를 구현체로 지정했기 때문에 Member를 반환
     */
     @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+    public Member loadUserByUsername(String email) throws UsernameNotFoundException {
         return memberRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Not Found " + email));
     }
