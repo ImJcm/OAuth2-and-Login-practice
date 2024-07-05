@@ -62,7 +62,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     /**
      * email로부터 실제 DB에서 사용자를 조회한 후, UsernamePasswordAuthneitcationToken로 인증 객체인 Authentication 객체 생성
      * UsernamePasswordAuthenticationToken의 인자
-     * 1. UserDetails : email로부터 실제 DB에 저장된 유저 객체
+     * 1. UserDetails : email로부터 실제 DB에 저장된 유저 객체 - UserDetailsService를 상속한 loginService의 loadUserByUsername() 이용
      * 2. credential(보통 비밀번호를 의미, 인증 시에는 null로 제거)
      * 3. Authorities로 Collection < ? extends GrantedAuthority>의 타입으로 유저의 권한을 저장하고 있다.
      *
@@ -72,7 +72,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * @param email
      */
     public void saveAuthentication(String email) {
-        UserDetails userDetails = loginService.loadUserByUsername(email);
+        Member userDetails = loginService.loadUserByUsername(email);
 
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 userDetails, null, userDetails.getAuthorities()
