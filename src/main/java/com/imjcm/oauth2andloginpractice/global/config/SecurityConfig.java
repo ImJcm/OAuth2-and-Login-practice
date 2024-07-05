@@ -128,6 +128,6 @@ public class SecurityConfig {
      */
     @Bean
     public LoginFailureHandler loginFailureHandler() {
-        return new LoginFailureHandler(jwtService, memberRepository);
+        return new LoginFailureHandler();
     }
 }
