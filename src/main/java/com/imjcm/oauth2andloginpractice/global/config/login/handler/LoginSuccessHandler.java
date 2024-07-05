@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
@@ -20,6 +21,9 @@ import java.io.IOException;
 public class LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
     private final JwtService jwtService;
     private final MemberRepository memberRepository;
+
+    @Value("${jwt.access.expiration}")
+    private String accessTokenExpiration;
 
     /**
      * UsernamePasswordAuthenticationFilter로 부터 인증을 마친 후, 인증이 성공할 경우 로직을 처리하는 onAuthenticationSuccess 메서드 수행한다.
@@ -36,7 +40,12 @@ public class LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
         Role role = extractRole(authentication);
 
         String token = jwtService.createAccessToken(email, role);
+
         jwtService.sendAccessToken(response, token);
+
+        log.info("로그인 성공 - email : {}",email);
+        log.info("로그인 성공 - AccessToken : {}",token);
+        log.info("로그인 성공 - AccessToken Expiration : {}",accessTokenExpiration);
     }
 
     /**
