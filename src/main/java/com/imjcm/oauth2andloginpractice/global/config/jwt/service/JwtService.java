@@ -81,6 +81,7 @@ public class JwtService {
      * @param token
      */
     public void sendAccessToken(HttpServletResponse response, String token) {
+        response.setStatus(HttpServletResponse.SC_OK);
         response.addHeader(accessTokenHeader, token);
     }
 
