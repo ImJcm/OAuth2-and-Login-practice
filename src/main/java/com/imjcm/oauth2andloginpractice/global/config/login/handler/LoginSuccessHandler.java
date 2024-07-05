@@ -50,18 +50,18 @@ public class LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     /**
      * Authentication 객체의 Principal에 저장된 UserDetails 객체에서 email을 추출
-     * Member는 UserDetails를 상속하기 때문에 Member 타입으로 받는다.
+     * Member는 UserDetails를 상속하기 때문에 Member타입으로 캐스팅하여 getPrincipal을 통해 받는다.
      * @param authentication
      * @return
      */
     private String extractEmail(Authentication authentication) {
-        Member userDetails = (Member) authentication.getDetails();
+        Member userDetails = (Member) authentication.getPrincipal();
         return userDetails.getEmail();
     }
 
     /**
      * Authentication 객체의 Principal에 저장된 UserDetails 객체에서 role을 추출
-     * Member는 UserDetails를 상속하기 때문에 Member 타입을 받는다.
+     * Member는 UserDetails를 상속하기 때문에 Member타입으로 캐스팅하여 getPrincipal을 통해 받는다.
      * @param authentication
      * @return
      */
