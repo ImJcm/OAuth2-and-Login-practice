@@ -31,7 +31,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final LoginService loginService;
-    private final MemberRepository memberRepository;
+
+    /**
+     * "/api/member/login"에 해당하는 요청인 경우, 해당 필터를 거치지 않고 다음 필터로 이동
+     * 그외 요창인 경우, request로부터 AccessToken을 추출한다.
+     * 추출한 AccessToken에서 validateToken을 거쳐 토큰 유효성 검사를 수행한다.
+     * AccessToken이 없거나, 유효성 검사에 실패한 경우 null을 반환하고 필터를 종료한다.
+     *
+     * 토큰이 null이 아닌 경우, token으로부터 Claim을 추출하고, claims에서 email을 추출하고 이메일이 존재할 경우,
+     * saveAuthentication(email)을 수행한다.
+     *
+     * 위 과정을 모두 마친 후, 해당 필터에서 다음 필터로 이동시킨다.(filterChain.doFilter(req,res))
+     *
+     * @param request
+     * @param response
+     * @param filterChain
+     * @throws ServletException
+     * @throws IOException
+     */
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         if(request.getRequestURI().equals(CHECK_URL)) {
