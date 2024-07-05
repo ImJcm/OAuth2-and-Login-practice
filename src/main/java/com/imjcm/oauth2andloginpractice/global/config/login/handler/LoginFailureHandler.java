@@ -15,9 +15,6 @@ import java.io.IOException;
 @Slf4j(topic = "로그인 인증 실패")
 @RequiredArgsConstructor
 public class LoginFailureHandler extends SimpleUrlAuthenticationFailureHandler {
-    private final JwtService jwtService;
-    private final MemberRepository memberRepository;
-
     /**
      * UsernamePasswordAuthenticationFilter에서 인증을 마친 후, 인증이 실패할 경우 로직을 처리하는 onAuthenticationFailure 메서드룰 수행한다.
      * @param request
@@ -28,6 +25,10 @@ public class LoginFailureHandler extends SimpleUrlAuthenticationFailureHandler {
      */
     @Override
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
-        super.onAuthenticationFailure(request, response, exception);
+        response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("text/plain;charset=UTF-8");
+        response.getWriter().write("로그인 실패! 이메일 또는 비밀번호를 확인해주세요.");
+        log.info("로그인 실패 - {}", exception.getMessage());
     }
 }
