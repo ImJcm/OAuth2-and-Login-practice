@@ -21,7 +21,7 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public ApiResponseDto login(LoginRequestDto loginRequestDto, HttpServletResponse response) {
+    /*public ApiResponseDto login(LoginRequestDto loginRequestDto, HttpServletResponse response) {
         Member member = findByEmail(loginRequestDto.getEmail());
 
         if(!member.getPassword().equals(loginRequestDto.getPassword())) {
@@ -29,7 +29,7 @@ public class MemberService {
         }
 
         return ApiResponseDto.of("로그인 성공", HttpStatus.OK.value());
-    }
+    }*/
 
     public ApiResponseDto signup(SignupRequestDto signupRequestDto) {
         if(existByEmail(signupRequestDto.getEmail())) {
