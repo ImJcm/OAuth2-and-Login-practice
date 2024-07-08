@@ -1,18 +1,15 @@
 package com.imjcm.oauth2andloginpractice.domain.member;
 
-import com.imjcm.oauth2andloginpractice.domain.member.dto.request.LoginRequestDto;
 import com.imjcm.oauth2andloginpractice.domain.member.dto.request.PasswordRequestDto;
 import com.imjcm.oauth2andloginpractice.domain.member.dto.request.ProfileRequestDto;
 import com.imjcm.oauth2andloginpractice.domain.member.dto.request.SignupRequestDto;
 import com.imjcm.oauth2andloginpractice.domain.member.dto.response.ProfileResponseDto;
 import com.imjcm.oauth2andloginpractice.global.common.ApiResponseDto;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
-@Controller
+@RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/member")
 public class MemberController {
