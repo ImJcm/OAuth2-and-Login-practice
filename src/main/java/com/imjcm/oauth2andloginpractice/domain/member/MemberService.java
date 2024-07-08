@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +43,7 @@ public class MemberService {
         return ApiResponseDto.of("회원가입 성공", HttpStatus.OK.value());
     }
 
+    @Transactional
     public ApiResponseDto updateProfile(ProfileRequestDto profileRequestDto) {
         Member member = getMemberByAuthentication();
 
@@ -50,6 +52,7 @@ public class MemberService {
         return ApiResponseDto.of("프로필 수정 성공", HttpStatus.OK.value());
     }
 
+    @Transactional
     public ApiResponseDto updatePassword(PasswordRequestDto passwordRequestDto) {
         Member member = getMemberByAuthentication();
 
