@@ -6,10 +6,12 @@ import com.imjcm.oauth2andloginpractice.domain.member.dto.request.ProfileRequest
 import com.imjcm.oauth2andloginpractice.domain.member.dto.request.SignupRequestDto;
 import com.imjcm.oauth2andloginpractice.domain.member.dto.response.ProfileResponseDto;
 import com.imjcm.oauth2andloginpractice.global.common.ApiResponseDto;
+import com.imjcm.oauth2andloginpractice.global.common.Role;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class MemberService {
     private final MemberRepository memberRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public ApiResponseDto login(LoginRequestDto loginRequestDto, HttpServletResponse response) {
         Member member = findByEmail(loginRequestDto.getEmail());
@@ -36,7 +39,8 @@ public class MemberService {
         memberRepository.save(Member.builder()
                 .email(signupRequestDto.getEmail())
                 .nickname(signupRequestDto.getNickname())
-                .password(signupRequestDto.getPassword())
+                .password(passwordEncoder.encode(signupRequestDto.getPassword()))
+                .role(Role.USER)
                 .build()
         );
 
