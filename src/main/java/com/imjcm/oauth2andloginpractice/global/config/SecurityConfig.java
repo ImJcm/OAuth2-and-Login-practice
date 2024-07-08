@@ -41,7 +41,7 @@ public class SecurityConfig {
      *  csrf : csrf 보안 사용 x - Cross site Request Forgery가 불가능하도록 설정
      *  sessionManagement : Session 사용하지 않으므로 STATELESS 설정 - Session 방식은 사용하지 않고 JWT 방식을 사용하기 위한 설정
      *  authorizeHttpRequests : 어떠한 API 요청을 인증 과정을 거칠 것인지 설정
-     *      - /api/member/login, /api/member/signup은 인증 과정 없이 허용
+     *      - /api/member/signup은 인증 과정 없이 허용
      *      - anyRequest().anthenticated() : 그외 나머지 요청은 인증 과정 적용
      *  addFilterBefore(customJsonUsernamePasswordAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
      *      - UsernamePasswordAuthenticationFilter 전에 customJsonUsernamePasswordAuthenticationFilter를 설정
@@ -61,7 +61,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests((authorizeRequests) ->
                         authorizeRequests
                                 .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
-                                .requestMatchers("/api/member/login", "/api/member/signup").permitAll()
+                                .requestMatchers("/api/member/signup").permitAll()
                                 .anyRequest().authenticated())
                 .addFilterBefore(customJsonUsernamePasswordAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter(), CustomJsonUsernamePasswordAuthenticationFilter.class);
