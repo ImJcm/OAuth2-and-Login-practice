@@ -5,6 +5,7 @@ import com.imjcm.oauth2andloginpractice.global.config.jwt.service.JwtService;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.HttpServletResponse;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -74,7 +75,7 @@ public class JwtServiceTest {
     @Test
     public void sendAccessTokenSuccess() throws Exception {
         // given
-        MockHttpServletResponse response = new MockHttpServletResponse();
+        HttpServletResponse response = new MockHttpServletResponse();
         String token = "Test Token";
         String accessTokenHeader = "Authorization";
 
