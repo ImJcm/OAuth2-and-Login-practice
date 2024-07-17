@@ -1,4 +1,4 @@
-package com.imjcm.oauth2andloginpractice.jwt.IntegrationTest;
+package com.imjcm.oauth2andloginpractice.jwt.SpringBootTest;
 
 import com.imjcm.oauth2andloginpractice.global.common.Role;
 import com.imjcm.oauth2andloginpractice.global.config.jwt.service.JwtService;
@@ -6,12 +6,14 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.HttpServletResponse;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 import javax.crypto.SecretKey;
 
@@ -50,7 +52,6 @@ public class JwtServiceTest {
 
         String jwt = token.split(" ")[1];
 
-        // then
         String emailFromAccessToken = Jwts.parser()
                 .verifyWith(key)
                 .build()
@@ -58,6 +59,22 @@ public class JwtServiceTest {
                 .getPayload()
                 .get(EMAIL_CLAIMS,String.class);
 
+        // then
         Assertions.assertThat(email).isEqualTo(emailFromAccessToken);
+    }
+
+    @DisplayName("sendAccessToken : AccessToken send 성공")
+    @Test
+    public void sendAccessTokenSuccess() throws Exception {
+        HttpServletResponse response = new MockHttpServletResponse();
+        String token = "Test Token";
+        String accessTokenHeader = "Authorization";
+
+        // when
+        jwtService.sendAccessToken(response, token);
+
+        // then
+        Assertions.assertThat(response.getStatus()).isEqualTo(MockHttpServletResponse.SC_OK);
+        Assertions.assertThat(response.getHeader(accessTokenHeader)).isEqualTo(token);
     }
 }
