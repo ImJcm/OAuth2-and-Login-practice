@@ -17,7 +17,6 @@ import java.io.IOException;
 @Slf4j(topic = "로그인 및 JWT 생성")
 @RequiredArgsConstructor
 public class CustomJsonUsernamePasswordAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
-    private final JwtService jwtService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -39,7 +38,7 @@ public class CustomJsonUsernamePasswordAuthenticationFilter extends UsernamePass
     @Override
     public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
         try {
-            LoginRequestDto requestDto = new ObjectMapper().readValue(request.getInputStream(), LoginRequestDto.class);
+            LoginRequestDto requestDto = objectMapper.readValue(request.getInputStream(), LoginRequestDto.class);
 
             return getAuthenticationManager().authenticate(
                     new UsernamePasswordAuthenticationToken(
