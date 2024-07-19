@@ -84,8 +84,7 @@ public class SecurityConfig {
      *   로그인 시, 인증을 하기위해서는 AuthenticationManager를 필요로 한다.
      *   spring 6.x 부터 제공되는 AuthenticationConfiguration 사용하여 AuthenticationManager를 받아올 수 있도록 한다.
      *   authenticationConfiguration은 인증을 위한 설정을 담고 있으며 AuthenticationManager로 사용될 수 있다.
-     *   jwtService, ObjectMapper를 인자로 받는다
-     *      - jwtService : jwt 토큰을 이용하기 위한 Service
+     *   ObjectMapper를 인자로 받는다
      *      - ObjectMapper : username(email), password를 전달하여 JSON 형태로 매핑하기 위함
      *   AuthenticationFilter를 적용할 url을 설정한다. (url = "/api/member/login")
      *      - UsernamePasswordAuthenticationFilter의 default Url = (/login, POST)
