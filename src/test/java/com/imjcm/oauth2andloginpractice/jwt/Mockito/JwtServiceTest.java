@@ -13,16 +13,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.crypto.SecretKey;
+import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
 public class JwtServiceTest {
     @InjectMocks
     private JwtService jwtService;
 
+    //private String jwt_token;
     private SecretKey key;
     private String secretKey;
     private Long accessTokenExpirationsPeriod;
@@ -45,6 +48,9 @@ public class JwtServiceTest {
         accessTokenHeader = "Authorization";
         BEARER_PREFIX = "Bearer ";
         EMAIL_CLAIMS = "email";
+
+        // jwt.io 생성 - email:testEmail.com, role:USER, iat:1721385588, exp:1721387388
+        //jwt_token = "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InRlc3RFbWFpbEBlbWFpbC5jb20iLCJyb2xlIjoiVVNFUiIsImlhdCI6MTcyMTM4NTU4OCwiZXhwIjoxNzIxMzg3Mzg4fQ.MGpZOZUONukpWkbUvPt1H8oLgmLewlb7002ZCJVakU8";
     }
 
     @DisplayName("createAccessToken : accessToken 생성 성공")
@@ -85,5 +91,51 @@ public class JwtServiceTest {
         // then
         Assertions.assertThat(response.getStatus()).isEqualTo(MockHttpServletResponse.SC_OK);
         Assertions.assertThat(response.getHeader(accessTokenHeader)).isEqualTo(token);
+    }
+
+    @DisplayName("getAccessTokenFromHeader : HttpServletRequest에서 token 가져오기 성공")
+    @Test
+    public void getAccessTokenFromHeaderSuccess() throws Exception {
+        // given
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        String accessTokenHeader = "Authorization";
+        String jwt_token = jwtService.createAccessToken("testEmail@email.com",Role.USER);
+        String jwt_token_value = jwt_token.replace(BEARER_PREFIX, "");
+
+        request.addHeader(accessTokenHeader, jwt_token);
+
+        // when
+        Optional<String> token = jwtService.getAccessTokenFromHeader(request);
+
+        // then
+        Assertions.assertThat(token).isNotEmpty();
+        Assertions.assertThat(token.get()).isEqualTo(jwt_token_value);
+    }
+
+    @DisplayName("validateToken : jwt token 검증 성공")
+    @Test
+    public void validateTokenSuccess() throws Exception {
+        // given
+        String jwt_token_value = jwtService.createAccessToken("testEmail@email.com",Role.USER).replace(BEARER_PREFIX, "");
+
+        // when
+        boolean valid = jwtService.validateToken(jwt_token_value);
+
+        // then
+        Assertions.assertThat(valid).isEqualTo(true);
+    }
+
+    @DisplayName("extractEmailFromToken : token에서 Email 값 추출 성공")
+    @Test
+    public void extractEmailFromTokenSuccess() throws Exception {
+        // given
+        String origin_email = "testEmail@email.com";
+        String jwt_token_value = jwtService.createAccessToken(origin_email,Role.USER).replace(BEARER_PREFIX, "");
+
+        // when
+        Optional<String> email = jwtService.extractEmailFromToken(jwt_token_value);
+
+        // then
+        Assertions.assertThat(email.get()).isEqualTo(origin_email);
     }
 }
