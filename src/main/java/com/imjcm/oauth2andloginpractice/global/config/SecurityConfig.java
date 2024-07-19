@@ -62,6 +62,7 @@ public class SecurityConfig {
                         authorizeRequests
                                 .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
                                 .requestMatchers("/api/member/signup").permitAll()
+                                .requestMatchers("/api/jwt/*").permitAll()    // jwt token Test 용
                                 .anyRequest().authenticated())
                 .addFilterBefore(customJsonUsernamePasswordAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter(), CustomJsonUsernamePasswordAuthenticationFilter.class);
