@@ -66,7 +66,7 @@ public class LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
      * @return
      */
     private Role extractRole(Authentication authentication) {
-        Member userDetails = (Member) authentication.getAuthorities();
+        Member userDetails = (Member) authentication.getPrincipal();
         return userDetails.getRole();
     }
 }
