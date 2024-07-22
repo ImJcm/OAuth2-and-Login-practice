@@ -22,14 +22,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.RequestBuilder;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -81,7 +85,7 @@ public class CustomJsonUsernamePasswordAuthenticationFilterTest {
                 .build());
     }
 
-    @DisplayName("attemptAuthentication - LoginSuccessHandler : Authentication 인증 시도 / LoginSuccessHandler 수행 성공")
+    @DisplayName("attemptAuthentication - LoginSuccessHandler : Authentication 인증 시도 / LoginSuccessHandler 수행")
     @Test
     public void attemptAuthenticationMethodSuccess() throws Exception {
         // given
@@ -97,5 +101,40 @@ public class CustomJsonUsernamePasswordAuthenticationFilterTest {
 
         // then
         Assertions.assertThat(result.getResponse().getStatus()).isEqualTo(HttpStatus.OK.value());
+    }
+
+    @DisplayName("attempAuthentication - LoginFailureHandler : Authentication 인증 시도 / LoginFailureHandler 수행")
+    @Test
+    public void attemptAuthenticationMethodFailure() throws Exception {
+        // given
+        LoginRequestDto requestDto = new LoginRequestDto("notExistEmail@email.com", password);
+        String jsonRequest = new ObjectMapper().writeValueAsString(requestDto);
+
+        // when
+        MvcResult result = mockMvc.perform(post(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonRequest))
+            .andReturn();
+
+        // then
+        Assertions.assertThat(result.getResponse().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+    }
+
+    @DisplayName("attemptAuthentication - IOException : LoginRequestDto Error로 RuntimeException 발생")
+    @Test
+    public void attemptAuthentication_objectMapper_readValue_IOException() throws Exception {
+        // given
+        String invalidJsonRequest = "{email: \"testEmail@email.com\", password: "; // 잘못된 JSON 형식
+
+        // when & then
+        Assertions.assertThatThrownBy(() -> {
+            RequestBuilder requestBuilder = post(url) // 필터가 적용된 엔드포인트
+                    .content(invalidJsonRequest)
+                    .contentType(MediaType.APPLICATION_JSON);
+
+            MvcResult mvcResult = mockMvc.perform(requestBuilder)
+                    .andReturn();
+        }).hasCauseInstanceOf(IOException.class)        // IOException 발생 여부
+                .isInstanceOf(RuntimeException.class);  // api 호출 시, 결과 RuntimeException 발생 여부
     }
 }
