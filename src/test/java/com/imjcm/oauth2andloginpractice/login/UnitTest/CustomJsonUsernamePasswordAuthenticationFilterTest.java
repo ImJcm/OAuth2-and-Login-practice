@@ -3,6 +3,8 @@ package com.imjcm.oauth2andloginpractice.login.UnitTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imjcm.oauth2andloginpractice.domain.member.dto.request.LoginRequestDto;
 import com.imjcm.oauth2andloginpractice.global.config.login.filter.CustomJsonUsernamePasswordAuthenticationFilter;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,10 +16,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -83,4 +88,25 @@ public class CustomJsonUsernamePasswordAuthenticationFilterTest {
 
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
     }
+
+    @DisplayName("attemptAuthentication : Authentication 인증 실패 - IOException")
+    @Test
+    public void attemptAuthenticationMethodFailure_NotExistMember() throws Exception {
+        // given
+        LoginRequestDto requestDto = null;
+        // detailMessage : No content to map due to end-of-input
+        Exception ioException = new IOException("역직렬화에 필요한 email, password JSON request가 존재하지 않음");
+        // detailMessage : No content to map due to end-of-input
+        Exception exception = new RuntimeException("역직렬화에 필요한 email, password JSON request가 존재하지 않음");
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        given(objectMapper.readValue(any(InputStream.class), eq(LoginRequestDto.class)))
+                .willThrow(ioException);
+
+        // when, then
+        Assertions.assertThatThrownBy(() -> customJsonUsernamePasswordAuthenticationFilter.attemptAuthentication(request,response))
+                .isInstanceOf(RuntimeException.class);
+    }
+
 }
