@@ -24,9 +24,17 @@ repositories {
 }
 
 dependencies {
+    // Spring data Jpa
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    // OAuth 2.0
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // Spring web Framework
     implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'com.mysql:mysql-connector-j'
