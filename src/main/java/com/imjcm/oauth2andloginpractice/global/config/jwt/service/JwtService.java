@@ -231,7 +231,6 @@ public class JwtService {
      * @param email
      * @return
      */
-
     public Optional<String> getRefreshTokenFromRedisThroughEmail(String email) {
         return Optional.ofNullable(redisTemplate.opsForValue().get(email));
     }
@@ -245,7 +244,7 @@ public class JwtService {
     }
 
     public void deleteRefreshTokenByRefreshToken(String refreshToken) {
-        String email = String.valueOf(extractEmailFromToken(refreshToken));
+        String email = extractEmailFromToken(refreshToken).get();
 
         deleteRefreshTokenByEmail(email);
     }
@@ -255,8 +254,8 @@ public class JwtService {
      * @return
      */
     public boolean isEqualsRefreshToken(String refreshToken) {
-        String email = String.valueOf(extractEmailFromToken(refreshToken));
-        String curRefreshToken = getRefreshTokenFromRedisThroughEmail(email).orElse(null);
+        String email = extractEmailFromToken(refreshToken).get();
+        String curRefreshToken = getRefreshTokenFromRedisThroughEmail(email).get();
 
         if(curRefreshToken == null) {
             log.info("refreshToken이 존재하지 않음.");
