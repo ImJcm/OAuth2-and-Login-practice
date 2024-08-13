@@ -12,10 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -27,13 +24,21 @@ import java.io.IOException;
 @Slf4j(topic = "JWT 검증 및 인가")
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    private static final String CHECK_URL = "/api/member/login";
+    private static final String NO_CHECK_URL = "/api/member/login";
 
     private final JwtService jwtService;
     private final LoginService loginService;
+    private final MemberRepository memberRepository;
 
     /**
      * "/api/member/login"에 해당하는 요청인 경우, 해당 필터를 거치지 않고 다음 필터로 이동
+     * - RefreshToken 검사
+     * RefreshToken이 null이 아니라면, refreshToken에서 email을 추출한 후, 추출한 이메일이 정상적인 사용자의 이메일인지 확인한 후
+     * 해당 이메일로 AccessToken, RefreshToken을 재생성 및 발급 수행한다.
+     *
+     * null이라면, checkAcessTokenAndAuthentication()을 수행한다.
+     *
+     * - checkAccessTokenAndAuthentication()
      * 그외 요창인 경우, request로부터 AccessToken을 추출한다.
      * 추출한 AccessToken에서 validateToken을 거쳐 토큰 유효성 검사를 수행한다.
      * AccessToken이 없거나, 유효성 검사에 실패한 경우 null을 반환하고 다음 필터로 이동한다.
@@ -54,18 +59,60 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        if(request.getRequestURI().equals(CHECK_URL)) {
+        if(request.getRequestURI().equals(NO_CHECK_URL)) {
             filterChain.doFilter(request,response);
             return;
         }
 
-        String token = jwtService.getAccessTokenFromHeader(request)
+        String refreshToken = jwtService.getRefreshTokenFromHeader(request)
                 .filter(jwtService::validateToken)
                 .orElse(null);
 
-        if(token != null) {
+        if(refreshToken != null) {
+            if(jwtService.isEqualsRefreshToken(refreshToken)) {
+                checkRefreshTokenAndReIssueAccessToken(response, refreshToken);
+            } else {
+                jwtService.deleteRefreshTokenByRefreshToken(refreshToken);
+                deleteAuthentication();
+            }
+            return;
+        }
+
+        checkAccessTokenAndAuthentication(request,response,filterChain);
+    }
+
+    /**
+     * Filter에서 RefreshToken이 null인 경우, AccessToken으로 인증을 수행하는 것으로 AccessToken의 유효성 검사 후,
+     * AccessToken에서 email을 추출하고 해당 이메일이 존재하는 이메일인지 검사하고 이메일에 해당하는 RefreshToken이 존재하는지 여부를 확인 후,
+     * 이메일을 사용하는 사용자의 이메일을 SecurityContextHolder에 Authentication을 등록하여 인증을 수행한다.
+     *
+     * email에 해당하는 RefreshToken이 존재하지 않거나, email에 해당하는 사용자가 없거나, AccessToken에서 email을 추출했을 때 없거나,
+     * AccessToken이 유효하지 않은 경우, Authentication을 등록하지 않는다.
+     *
+     * @param request
+     * @param response
+     * @param filterChain
+     * @throws ServletException
+     * @throws IOException
+     */
+    public void checkAccessTokenAndAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        jwtService.getAccessTokenFromHeader(request)
+                .filter(jwtService::validateToken)
+                .flatMap(accessToken -> jwtService.extractEmailFromToken(accessToken)
+                .flatMap(memberRepository::findByEmail))
+                .flatMap(member -> jwtService.getRefreshTokenFromRedisThroughEmail(member.getEmail()))
+                .ifPresent(refreshToken -> saveAuthentication(String.valueOf(jwtService.extractEmailFromToken(refreshToken))));
+
+        filterChain.doFilter(request,response);
+
+        /*
+        String accessToken = jwtService.getAccessTokenFromHeader(request)
+                .filter(jwtService::validateToken)
+                .orElse(null);
+
+        if(accessToken != null) {
             try {
-                jwtService.extractEmailFromToken(token)
+                jwtService.extractEmailFromToken(accessToken)
                         .ifPresent(this::saveAuthentication);
             } catch (Exception e) {
                 log.error(e.getMessage());
@@ -74,8 +121,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } else {
             log.info("Token is Null");
         }
-
-        filterChain.doFilter(request,response);
+         */
     }
 
     /**
@@ -100,4 +146,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 
+    /**
+     * Header에 RefreshToken이 존재하면 수행하는 메서드로, RefreshToken에서 email을 추출하여 이메일에 해당하는 사용자가 존재하는지
+     * 확인 후, AccessToken, RefreshToken을 재생성한 후, Redis DB에 업데이트하고 클라이언트에게 재발급한다.
+     *
+     * @param response
+     * @param refreshToken
+     */
+    public void checkRefreshTokenAndReIssueAccessToken(HttpServletResponse response, String refreshToken) {
+        String email = String.valueOf(jwtService.extractEmailFromToken(refreshToken));
+
+        memberRepository.findByEmail(email)
+                .ifPresent(member -> {
+                    String reIssuedRefreshToken = jwtService.reIssuedRefreshToken(email);
+                    String reIssuedAccessToken = jwtService.createAccessToken(email,member.getRole());
+                    jwtService.sendAccessTokenAndRefreshToken(response, reIssuedAccessToken, reIssuedRefreshToken);
+                });
+    }
+
+    /**
+     * 현재 SecurityContextHolder를 비운다.
+     */
+    public void deleteAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
 }
