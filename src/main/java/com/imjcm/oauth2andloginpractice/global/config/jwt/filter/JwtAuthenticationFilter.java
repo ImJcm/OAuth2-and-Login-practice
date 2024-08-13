@@ -101,7 +101,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 .flatMap(accessToken -> jwtService.extractEmailFromToken(accessToken)
                 .flatMap(memberRepository::findByEmail))
                 .flatMap(member -> jwtService.getRefreshTokenFromRedisThroughEmail(member.getEmail()))
-                .ifPresent(refreshToken -> saveAuthentication(String.valueOf(jwtService.extractEmailFromToken(refreshToken))));
+                .ifPresent(refreshToken -> saveAuthentication(jwtService.extractEmailFromToken(refreshToken).get()));
 
         filterChain.doFilter(request,response);
 
@@ -154,7 +154,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * @param refreshToken
      */
     public void checkRefreshTokenAndReIssueAccessToken(HttpServletResponse response, String refreshToken) {
-        String email = String.valueOf(jwtService.extractEmailFromToken(refreshToken));
+        String email = jwtService.extractEmailFromToken(refreshToken).get();
 
         memberRepository.findByEmail(email)
                 .ifPresent(member -> {
