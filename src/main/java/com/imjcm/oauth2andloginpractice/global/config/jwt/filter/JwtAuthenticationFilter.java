@@ -70,7 +70,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if(refreshToken != null) {
             if(jwtService.isEqualsRefreshToken(refreshToken)) {
-                checkRefreshTokenAndReIssueAccessToken(response, refreshToken);
+                checkRefreshTokenAndReIssueToken(response, refreshToken);
             } else {
                 jwtService.deleteRefreshTokenByRefreshToken(refreshToken);
                 deleteAuthentication();
@@ -153,7 +153,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * @param response
      * @param refreshToken
      */
-    public void checkRefreshTokenAndReIssueAccessToken(HttpServletResponse response, String refreshToken) {
+    public void checkRefreshTokenAndReIssueToken(HttpServletResponse response, String refreshToken) {
         String email = jwtService.extractEmailFromToken(refreshToken).get();
 
         memberRepository.findByEmail(email)
