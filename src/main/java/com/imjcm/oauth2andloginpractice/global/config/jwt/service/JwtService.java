@@ -255,7 +255,7 @@ public class JwtService {
      */
     public boolean isEqualsRefreshToken(String refreshToken) {
         String email = extractEmailFromToken(refreshToken).get();
-        String curRefreshToken = getRefreshTokenFromRedisThroughEmail(email).get();
+        String curRefreshToken = getRefreshTokenFromRedisThroughEmail(email).orElse(null);
 
         if(curRefreshToken == null) {
             log.info("refreshToken이 존재하지 않음.");
