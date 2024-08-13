@@ -11,8 +11,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
@@ -31,9 +31,17 @@ public class JwtService {
     @Value("${jwt.access.header}")
     private String accessTokenHeader;
 
+    @Value("${jwt.refresh.expiration}")
+    private Long refreshTokenExpirationsPeriod;
+
+    @Value("${jwt.refresh.header}")
+    private String refreshTokenHeader;
+
     private SecretKey key;
     public static final String BEARER_PREFIX = "Bearer ";
     public static final String EMAIL_CLAIMS = "email";
+
+    private final RedisTemplate<String, String> redisTemplate;
 
     /**
      * @PostContstruct 애너테이션은 JwtService에 최초로 접근 시, 한 번만 실행될 수 있는 메서드를 의미
@@ -76,6 +84,35 @@ public class JwtService {
     }
 
     /**
+     * email을 인자로 RefreshToken을 생성한다.
+     * RefreshToken 양식 : Bearer + refreshToken
+     * @param email
+     * @return
+     */
+    public String createRefreshToken(String email) {
+        Date date = new Date();
+
+        return BEARER_PREFIX +
+                Jwts.builder()
+                        .claim("email",email)
+                        .issuedAt(date)
+                        .expiration(new Date(date.getTime() + refreshTokenExpirationsPeriod))
+                        .signWith(key,Jwts.SIG.HS256)
+                        .compact();
+    }
+
+    /**
+     * email에 해당하는 refreshToken을 생성 후 redis에 refreshToken 업데이트
+     * @param email
+     * @return
+     */
+    public String reIssuedRefreshToken(String email) {
+        String reIssuedRefreshToken = createRefreshToken(email);
+        updateRefreshToken(email, reIssuedRefreshToken);
+        return reIssuedRefreshToken;
+    }
+
+    /**
      * accessToken Header로 보내기 (Key : Authorization, value - accessToken)
      * @param response
      * @param token
@@ -86,8 +123,30 @@ public class JwtService {
     }
 
     /**
+     * refreshToken Header로 보내기 (Key : Refresh Authorization, value - refreshToken)
+     * @param response
+     * @param token
+     */
+    public void sendRefreshToken(HttpServletResponse response, String token) {
+        response.setStatus(HttpServletResponse.SC_OK);
+        response.addHeader(refreshTokenHeader, token);
+    }
+
+    /**
+     * accessToken, refreshToken을 함께 Header로 보내기
+     * @param response
+     * @param accessToken
+     * @param refreshToken
+     */
+    public void sendAccessTokenAndRefreshToken(HttpServletResponse response, String accessToken, String refreshToken) {
+        response.setStatus(HttpServletResponse.SC_OK);
+        response.addHeader(accessTokenHeader, accessToken);
+        response.addHeader(refreshTokenHeader, refreshToken);
+    }
+
+    /**
      * header에서 AccessToken 가져오기
-     * Header에서 Key로 Authorization인 value에서 AccessToken을 Beader Prefix 부분을 제거하여 반환
+     * Header에서 Key로 Authorization인 value에서 AccessToken을 Bearer Prefix 부분을 제거하여 반환
      * @param request
      * @return
      */
@@ -103,6 +162,18 @@ public class JwtService {
         return Optional.ofNullable(request.getHeader(accessTokenHeader))
                 .filter(accessToken -> accessToken.startsWith(BEARER_PREFIX))
                 .map(accessTokenHeader -> accessTokenHeader.replace(BEARER_PREFIX,""));
+    }
+
+    /**
+     * Header에서 RefreshToken 가져오기
+     * Header에서 Key로 Refresh Authoriztion인 value에서 RefreshToken을 Bearer Prefix 부분을 제거하여 반환
+     * @param request
+     * @return
+     */
+    public Optional<String> getRefreshTokenFromHeader(HttpServletRequest request) {
+        return Optional.ofNullable(request.getHeader(refreshTokenHeader))
+                .filter(refreshToken -> refreshToken.startsWith(BEARER_PREFIX))
+                .map(refreshTokenHeader -> refreshTokenHeader.replace(BEARER_PREFIX,""));
     }
 
     /**
@@ -132,7 +203,7 @@ public class JwtService {
     }
 
     /**
-     * AccessToken으로부터 사용자 정보를 담은 Claims에서 email 반환
+     * Access / Refresh Token으로부터 사용자 정보를 담은 Claims에서 email 반환
      * @param token
      * @return
      */
@@ -144,5 +215,60 @@ public class JwtService {
                 .getPayload()
                 .get(EMAIL_CLAIMS)
                 .toString());
+    }
+
+    /**
+     * email, refreshToken을 Key:value 형태로 redis에 저장 및 업데이트
+     * @param email
+     * @param refreshToken
+     */
+    public void updateRefreshToken(String email, String refreshToken) {
+        redisTemplate.opsForValue().set(email,refreshToken);
+    }
+
+    /**
+     * Redis DB에서 email에 해당하는 Key가 존재할 경우, refreshToken인 value를 반환
+     * @param email
+     * @return
+     */
+
+    public Optional<String> getRefreshTokenFromRedisThroughEmail(String email) {
+        return Optional.ofNullable(redisTemplate.opsForValue().get(email));
+    }
+
+    /**
+     * Redis에서 email에 해당하는 Key 데이터를 삭제
+     * @param email
+     */
+    public void deleteRefreshTokenByEmail(String email) {
+        redisTemplate.delete(email);
+    }
+
+    public void deleteRefreshTokenByRefreshToken(String refreshToken) {
+        String email = String.valueOf(extractEmailFromToken(refreshToken));
+
+        deleteRefreshTokenByEmail(email);
+    }
+
+    /** redis에 저장된 refreshToken과 header로 전달된 refreshToken이 같은지 검사와 email에 해당하는 refreshToken이 존재하는지 검증
+     * @param refreshToken
+     * @return
+     */
+    public boolean isEqualsRefreshToken(String refreshToken) {
+        String email = String.valueOf(extractEmailFromToken(refreshToken));
+        String curRefreshToken = getRefreshTokenFromRedisThroughEmail(email).orElse(null);
+
+        if(curRefreshToken == null) {
+            log.info("refreshToken이 존재하지 않음.");
+            return false;
+        } else {
+            if(curRefreshToken.equals(refreshToken)) {
+                log.info("refreshToken이 동일.");
+                return true;
+            } else {
+                log.info("refreshToken이 동일하지 않음");
+                return false;
+            }
+        }
     }
 }
