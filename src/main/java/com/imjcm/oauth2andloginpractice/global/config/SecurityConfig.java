@@ -64,6 +64,7 @@ public class SecurityConfig {
                                 .requestMatchers("/api/member/signup").permitAll()
                                 .requestMatchers("/api/jwt/*").permitAll()    // jwt token Test 용
                                 .anyRequest().authenticated())
+                //.oauth2Login()
                 .addFilterBefore(customJsonUsernamePasswordAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter(), CustomJsonUsernamePasswordAuthenticationFilter.class);
         return http.build();
