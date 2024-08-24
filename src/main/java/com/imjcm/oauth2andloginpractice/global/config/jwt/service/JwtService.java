@@ -1,20 +1,25 @@
 package com.imjcm.oauth2andloginpractice.global.config.jwt.service;
 
-import com.imjcm.oauth2andloginpractice.global.common.Role;
+import com.imjcm.oauth2andloginpractice.global.common.CookieUtil;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
 import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Optional;
 
@@ -26,13 +31,13 @@ public class JwtService {
     private String secretKey;
 
     @Value("${jwt.access.expiration}")
-    private Long accessTokenExpirationsPeriod;
+    private int accessTokenExpirationsPeriod;
 
     @Value("${jwt.access.header}")
     private String accessTokenHeader;
 
     @Value("${jwt.refresh.expiration}")
-    private Long refreshTokenExpirationsPeriod;
+    private int refreshTokenExpirationsPeriod;
 
     @Value("${jwt.refresh.header}")
     private String refreshTokenHeader;
@@ -42,6 +47,7 @@ public class JwtService {
     public static final String EMAIL_CLAIMS = "email";
 
     private final RedisTemplate<String, String> redisTemplate;
+
 
     /**
      * @PostContstruct 애너테이션은 JwtService에 최초로 접근 시, 한 번만 실행될 수 있는 메서드를 의미
@@ -63,19 +69,17 @@ public class JwtService {
     }
 
     /**
-     * email, role을 인자로 AccessToken을 생성한다.
+     * email을 인자로 AccessToken을 생성한다.
      * AccessToken 양식 : Bearer + accessToken
      * @param email
-     * @param role
      * @return
      */
-    public String createAccessToken(String email, Role role) {
+    public String createAccessToken(String email) {
         Date date = new Date();
 
         return BEARER_PREFIX +
                 Jwts.builder()
                         .claim("email",email)
-                        .claim("role", role)
                         .issuedAt(date)
                         .expiration(new Date(date.getTime() + accessTokenExpirationsPeriod))
                         .signWith(key,Jwts.SIG.HS256)
@@ -102,46 +106,38 @@ public class JwtService {
     }
 
     /**
-     * email에 해당하는 refreshToken을 생성 후 redis에 refreshToken 업데이트
-     * @param email
-     * @return
-     */
-    public String reIssuedRefreshToken(String email) {
-        String reIssuedRefreshToken = createRefreshToken(email);
-        updateRefreshToken(email, reIssuedRefreshToken);
-        return reIssuedRefreshToken;
-    }
-
-    /**
      * accessToken Header로 보내기 (Key : Authorization, value - accessToken)
      * @param response
      * @param token
      */
-    public void sendAccessToken(HttpServletResponse response, String token) {
+    public void sendAccessTokenByHeader(HttpServletResponse response, String token) {
         response.setStatus(HttpServletResponse.SC_OK);
         response.addHeader(accessTokenHeader, token);
     }
 
     /**
-     * refreshToken Header로 보내기 (Key : Refresh Authorization, value - refreshToken)
+     * refreshToken Cookie로 보내기 (Key : Refresh Authorization, value - refreshToken)
+     * 기존에 저장된 refreshToken을 Cookie에서 지우고, 새로운 refreshToken을 저장한다.
+     * @param request
      * @param response
      * @param token
      */
-    public void sendRefreshToken(HttpServletResponse response, String token) {
+    public void sendRefreshTokenByCookie(HttpServletRequest request, HttpServletResponse response, String token) {
         response.setStatus(HttpServletResponse.SC_OK);
-        response.addHeader(refreshTokenHeader, token);
+        CookieUtil.deleteCookie(request, response, refreshTokenHeader);
+        CookieUtil.addCookie(response, refreshTokenHeader, token, refreshTokenExpirationsPeriod);
     }
 
     /**
-     * accessToken, refreshToken을 함께 Header로 보내기
+     * accessToken, refreshToken을 함께 Header,Cookie로 보내기
      * @param response
      * @param accessToken
      * @param refreshToken
      */
-    public void sendAccessTokenAndRefreshToken(HttpServletResponse response, String accessToken, String refreshToken) {
+    public void sendAccessTokenAndRefreshToken(HttpServletRequest request, HttpServletResponse response, String accessToken, String refreshToken) {
         response.setStatus(HttpServletResponse.SC_OK);
-        response.addHeader(accessTokenHeader, accessToken);
-        response.addHeader(refreshTokenHeader, refreshToken);
+        sendAccessTokenByHeader(response, accessToken);
+        sendRefreshTokenByCookie(request, response, refreshToken);
     }
 
     /**
@@ -165,15 +161,19 @@ public class JwtService {
     }
 
     /**
-     * Header에서 RefreshToken 가져오기
-     * Header에서 Key로 Refresh Authoriztion인 value에서 RefreshToken을 Bearer Prefix 부분을 제거하여 반환
+     * Cookie에서 RefreshToken 가져오기
+     * Cookie에서 Key로 Refresh-Authorization인 value에서 RefreshToken을 UTF-8 decode를 수행 후, Bearer Prefix 부분을 제거하여 반환
      * @param request
      * @return
      */
-    public Optional<String> getRefreshTokenFromHeader(HttpServletRequest request) {
-        return Optional.ofNullable(request.getHeader(refreshTokenHeader))
-                .filter(refreshToken -> refreshToken.startsWith(BEARER_PREFIX))
-                .map(refreshTokenHeader -> refreshTokenHeader.replace(BEARER_PREFIX,""));
+    public Optional<String> getRefreshTokenFromCookie(HttpServletRequest request) {
+        return Optional.ofNullable(request.getCookies()) // 쿠키 배열이 null일 수 있으므로 Optional로 감싸기
+                .flatMap(cookies -> Arrays.stream(cookies) // 쿠키 배열을 스트림으로 변환
+                        .filter(cookie -> cookie.getName().equals(refreshTokenHeader)) // refreshTokenHeader와 같은 이름의 쿠키 찾기
+                        .findFirst() // 첫 번째로 찾은 쿠키 반환
+                        .map(Cookie::getValue) // 쿠키의 값을 가져오기
+                        .map(value -> URLDecoder.decode(value, StandardCharsets.UTF_8)) // URL 디코딩
+                        .map(value -> value.replace(BEARER_PREFIX, ""))); // BEARER_PREFIX 제거
     }
 
     /**
@@ -192,14 +192,17 @@ public class JwtService {
             return true;
         } catch (SecurityException | MalformedJwtException | SignatureException e) {
             log.error("Invalid Jwt signature, 유효하지 않는 Jwt 서명입니다.");
+            throw new JwtException("Invalid Jwt signature, 유효하지 않는 Jwt 서명입니다.");
         } catch (ExpiredJwtException e) {
             log.error("Expired Jwt token, 만료된 Jwt 토큰입니다.");
+            throw new JwtException("Expired Jwt token, 만료된 Jwt 토큰입니다.");
         } catch (UnsupportedJwtException e) {
             log.error("Unsupported Jwt token, 지원되지 않는 Jwt 토큰입니다.");
+            throw new JwtException("Unsupported Jwt token, 지원되지 않는 Jwt 토큰입니다.");
         } catch (IllegalArgumentException e) {
             log.error("Jwt claims is empty, 잘못된 Jwt 토큰입니다.");
+            throw new JwtException("Jwt claims is empty, 잘못된 Jwt 토큰입니다.");
         }
-        return false;
     }
 
     /**
@@ -223,7 +226,7 @@ public class JwtService {
      * @param refreshToken
      */
     public void updateRefreshToken(String email, String refreshToken) {
-        redisTemplate.opsForValue().set(email,refreshToken);
+        redisTemplate.opsForValue().set(email,removeBearerPrefixFromToken(refreshToken));
     }
 
     /**
@@ -269,5 +272,22 @@ public class JwtService {
                 return false;
             }
         }
+    }
+
+    /**
+     * 현재 SecurityContextHolder를 비운다.
+     */
+    public void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+
+    }
+
+    /**
+     * Bearer + Token에서 Bearer 제거하여 token 값 반환
+     * @param token
+     * @return
+     */
+    public String removeBearerPrefixFromToken(String token) {
+        return token.replace(BEARER_PREFIX,"");
     }
 }
