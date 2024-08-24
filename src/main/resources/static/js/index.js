@@ -5,6 +5,7 @@ import {setAccessToken} from "./jwt.js";
 const jwt_reIssue_uri = '/api/jwt/reissue-token';
 document.addEventListener('DOMContentLoaded', function() {
     alert('index Page!' + getAccessToken() + "/" + getRefreshToken());
+    history.replaceState({}, null, location.pathname);
 });
 
 const clickButton = document.getElementById("auth-btn");
@@ -42,6 +43,8 @@ function httpRequest(method, url, body, success, fail) {
             return success();
         }
         const refreshToken = getRefreshToken();
+
+        console.log(response.status)
 
         if(response.status === 401 && refreshToken) {
             fetch(jwt_reIssue_uri, {
