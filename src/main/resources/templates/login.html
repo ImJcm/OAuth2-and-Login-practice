@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+</head>
+<body>
+    <div class="login-container">
+        <h2>Login</h2>
+        <form id="loginForm">
+            <input type="email" id="email" name="email" placeholder="Enter your email" required>
+            <input type="password" id="password" name="password" placeholder="Enter your password" required>
+            <button type="submit" id="loginButton">Login</button>
+            <button type="button" id="signupButton">signup</button>
+        </form>
+    </div>
+    <hr>
+    <div>
+        <h2>OAuth Login Link</h2>
+        <a href="/oauth2/authorization/kakao">Kakao Login</a><br>
+        <a href="/oauth2/authorization/google">Google Login</a><br>
+        <a href="/oauth2/authorization/naver">Naver Login</a><br>
+    </div>
+    <script type="module" src="/js/login.js"></script>
+    <script type="modile" src="/js/jwt.js"></script>
+</body>
+</html>
