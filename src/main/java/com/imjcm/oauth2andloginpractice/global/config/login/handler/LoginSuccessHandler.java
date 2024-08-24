@@ -2,7 +2,6 @@ package com.imjcm.oauth2andloginpractice.global.config.login.handler;
 
 import com.imjcm.oauth2andloginpractice.domain.member.Member;
 import com.imjcm.oauth2andloginpractice.domain.member.MemberRepository;
-import com.imjcm.oauth2andloginpractice.global.common.Role;
 import com.imjcm.oauth2andloginpractice.global.config.jwt.service.JwtService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,9 +38,8 @@ public class LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
         String email = extractEmail(authentication);
-        Role role = extractRole(authentication);
 
-        String accessToken = jwtService.createAccessToken(email, role);
+        String accessToken = jwtService.createAccessToken(email);
         String refreshToken = jwtService.createRefreshToken(email);
 
         memberRepository.findByEmail(email)
@@ -49,8 +47,10 @@ public class LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
                             jwtService.updateRefreshToken(email, refreshToken)
                         );
 
-        jwtService.sendAccessToken(response, accessToken);
-        jwtService.sendRefreshToken(response, refreshToken);
+        jwtService.clearAuthentication();
+        super.clearAuthenticationAttributes(request);
+
+        jwtService.sendAccessTokenAndRefreshToken(request, response, accessToken, refreshToken);
 
         log.info("로그인 성공 - email : {}", email);
         log.info("로그인 성공 - AccessToken : {}", accessToken);
@@ -69,16 +69,5 @@ public class LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
     private String extractEmail(Authentication authentication) {
         Member userDetails = (Member) authentication.getPrincipal();
         return userDetails.getEmail();
-    }
-
-    /**
-     * Authentication 객체의 Principal에 저장된 UserDetails 객체에서 role을 추출
-     * Member는 UserDetails를 상속하기 때문에 Member타입으로 캐스팅하여 getPrincipal을 통해 받는다.
-     * @param authentication
-     * @return
-     */
-    private Role extractRole(Authentication authentication) {
-        Member userDetails = (Member) authentication.getPrincipal();
-        return userDetails.getRole();
     }
 }
