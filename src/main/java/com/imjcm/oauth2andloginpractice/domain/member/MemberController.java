@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/member")
 public class MemberController {
     private final MemberService memberService;
 
@@ -33,19 +32,19 @@ public class MemberController {
         return ResponseEntity.ok().body(profileResponseDto);
     }
 
-    @PutMapping("/profile")
+    @PutMapping("/api/profile")
     public ResponseEntity<ApiResponseDto> updateProfile(@RequestBody ProfileRequestDto profileRequestDto) {
         ApiResponseDto apiResponseDto = memberService.updateProfile(profileRequestDto);
         return ResponseEntity.ok().body(apiResponseDto);
     }
 
-    @PutMapping("/password")
+    @PutMapping("/api/password")
     public ResponseEntity<ApiResponseDto> updatePassword(@RequestBody PasswordRequestDto passwordRequestDto) {
         ApiResponseDto apiResponseDto = memberService.updatePassword(passwordRequestDto);
         return ResponseEntity.ok().body(apiResponseDto);
     }
 
-    @DeleteMapping("/profile")
+    @DeleteMapping("/api/profile")
     public ResponseEntity<ApiResponseDto> delete(@RequestBody PasswordRequestDto passwordRequestDto) {
         ApiResponseDto apiResponseDto = memberService.deleteProfile(passwordRequestDto);
         return ResponseEntity.ok().body(apiResponseDto);
