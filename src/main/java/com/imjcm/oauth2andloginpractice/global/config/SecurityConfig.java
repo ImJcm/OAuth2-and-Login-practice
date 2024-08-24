@@ -3,13 +3,17 @@ package com.imjcm.oauth2andloginpractice.global.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.imjcm.oauth2andloginpractice.domain.member.MemberRepository;
 import com.imjcm.oauth2andloginpractice.global.config.jwt.filter.JwtAuthenticationFilter;
+import com.imjcm.oauth2andloginpractice.global.config.jwt.filter.JwtExceptionFilter;
+import com.imjcm.oauth2andloginpractice.global.config.jwt.handler.CustomAuthenticationEntryPoint;
 import com.imjcm.oauth2andloginpractice.global.config.jwt.service.JwtService;
 import com.imjcm.oauth2andloginpractice.global.config.login.filter.CustomJsonUsernamePasswordAuthenticationFilter;
 import com.imjcm.oauth2andloginpractice.global.config.login.handler.LoginFailureHandler;
 import com.imjcm.oauth2andloginpractice.global.config.login.handler.LoginSuccessHandler;
 import com.imjcm.oauth2andloginpractice.global.config.login.service.LoginService;
+import com.imjcm.oauth2andloginpractice.global.config.oauth.handler.OAuth2LoginFailureHandler;
+import com.imjcm.oauth2andloginpractice.global.config.oauth.handler.OAuth2LoginSuccessHandler;
+import com.imjcm.oauth2andloginpractice.global.config.oauth.service.CustomOAuth2MemberService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -17,6 +21,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -33,8 +38,25 @@ public class SecurityConfig {
     private final ObjectMapper objectMapper;
     private final JwtService jwtService;
     private final LoginService loginService;
+    private final CustomOAuth2MemberService customOAuth2MemberService;
+    private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
     private final MemberRepository memberRepository;
     private final AuthenticationConfiguration authenticationConfiguration;
+    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+
+    /**
+     * /img/**, /css/**, /js/**, /favicon.ico, /static/**
+     * 의 매핑되는 API 호출 시, Spring Security를 거치지 않는 설정
+     * @return
+     */
+    @Bean
+    public WebSecurityCustomizer configure() {
+        return (web) -> web.ignoring()
+                .requestMatchers("/img/**", "/css/**", "/js/**")
+                .requestMatchers("/favicon.ico")
+                .requestMatchers("/static/**");
+    }
 
     /**
      *  FormLogin : FormLogin 양식 사용 x
@@ -48,6 +70,9 @@ public class SecurityConfig {
      *  addFilterBefore(jwtAuthenticationFilter(), CustomJsonUsernamePasswordAuthenticationFilter.class)
      *      - CustomJsonUsernamePasswordAuthenticationFilter전에 jwtAuthenticationFilter를 적용
      *      - jwt 토큰 여부 검사 및 검증 -> jwt 유효 시, Authentication 생성하여 인증 / jwt 미유효 시, 예외 발생 또는 login 유도
+     *  spring security filter에서 인증이 필요한 API 요청 시, Spring SecurityContextHolder의 Authentication 객체 상태로 인증/비인증 상태 검증
+     *      - Authentication 객체가 null이면, authenticationEntryPoint 예외 핸들링
+     *      - Authentication 객체가 null이 아니면, 인증된 상태로 인식
      */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -56,18 +81,43 @@ public class SecurityConfig {
                         formLogin.disable())
                 .csrf((csrfConfig) ->
                         csrfConfig.disable())
+                .httpBasic((httpBasic) ->
+                        httpBasic.disable())
                 .sessionManagement((sessionManagement)
                         -> sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
                 .authorizeHttpRequests((authorizeRequests) ->
                         authorizeRequests
-                                .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
-                                .requestMatchers("/api/member/signup").permitAll()
-                                .requestMatchers("/api/jwt/*").permitAll()    // jwt token Test 용
-                                .anyRequest().authenticated())
-                //.oauth2Login()
+                                .requestMatchers("/api/jwt/**").permitAll()
+                                .requestMatchers("/api/**").authenticated()
+                                .anyRequest().permitAll())
+                .oauth2Login((oauth2) ->
+                        oauth2
+                            .loginPage("/home/login")
+                            .authorizationEndpoint(authorizationEndpoint ->
+                                    authorizationEndpoint.baseUri("/oauth2/authorization"))
+                            .redirectionEndpoint(redirectionEndpoint ->
+                                    redirectionEndpoint.baseUri("/login/oauth2/code/**"))
+                            .successHandler(oAuth2LoginSuccessHandler)
+                            .failureHandler(oAuth2LoginFailureHandler)
+                            .userInfoEndpoint(userInfoEndpoint ->
+                                    userInfoEndpoint
+                                        .userService(customOAuth2MemberService)))
+                .exceptionHandling(httpSecurityExceptionHandlingConfigurer ->
+                        httpSecurityExceptionHandlingConfigurer.authenticationEntryPoint(customAuthenticationEntryPoint))
                 .addFilterBefore(customJsonUsernamePasswordAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtAuthenticationFilter(), CustomJsonUsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter(), CustomJsonUsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtExceptionFilter(), JwtAuthenticationFilter.class);
         return http.build();
+    }
+
+    /**
+     * Jwt Token관련 예외를 처리하기 위한 Filter - Jwt 관련 예외는 JwtException을 발생
+     * @return
+     */
+    @Bean
+    public JwtExceptionFilter jwtExceptionFilter() {
+        return new JwtExceptionFilter();
     }
 
     /**
@@ -98,7 +148,7 @@ public class SecurityConfig {
     public CustomJsonUsernamePasswordAuthenticationFilter customJsonUsernamePasswordAuthenticationFilter() throws Exception {
         CustomJsonUsernamePasswordAuthenticationFilter customJsonUsernamePasswordAuthenticationFilter
                 = new CustomJsonUsernamePasswordAuthenticationFilter(objectMapper);
-        customJsonUsernamePasswordAuthenticationFilter.setFilterProcessesUrl("/api/member/login");
+        customJsonUsernamePasswordAuthenticationFilter.setFilterProcessesUrl("/login");
         customJsonUsernamePasswordAuthenticationFilter.setAuthenticationManager(authenticationManager(authenticationConfiguration));
         customJsonUsernamePasswordAuthenticationFilter.setAuthenticationSuccessHandler(loginSuccessHandler());
         customJsonUsernamePasswordAuthenticationFilter.setAuthenticationFailureHandler(loginFailureHandler());
