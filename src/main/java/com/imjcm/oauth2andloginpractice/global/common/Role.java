@@ -14,6 +14,19 @@ public enum Role {
         return this.authority;
     }
 
+    public static Role getRoleType(String authority) {
+        Role role = null;
+        switch (authority) {
+            case "ROLE_USER":
+                role = Role.USER;
+                break;
+            case "ROLE_ADMIN":
+                role = Role.ADMIN;
+                break;
+        }
+        return role;
+    }
+
     public static class Authority {
         public static final String USER = "ROLE_USER";
         public static final String ADMIN = "ROLE_ADMIN";
