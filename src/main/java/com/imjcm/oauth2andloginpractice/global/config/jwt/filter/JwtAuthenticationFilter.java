@@ -16,6 +16,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  *  JWT Authorization(인가) 필터
@@ -24,14 +25,15 @@ import java.io.IOException;
 @Slf4j(topic = "JWT 검증 및 인가")
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    private static final String NO_CHECK_URL = "/api/member/login";
+    private static final String[] NO_CHECK_URL = {"/login", "/api/jwt/reissue-token"};
 
     private final JwtService jwtService;
     private final LoginService loginService;
     private final MemberRepository memberRepository;
 
     /**
-     * "/api/member/login"에 해당하는 요청인 경우, 해당 필터를 거치지 않고 다음 필터로 이동
+     * "/login","/api/jwt/reissue-token"에 해당하는 요청인 경우, 해당 필터를 거치지 않고 다음 필터로 이동
+     * (예외 API가 많아질 경우, 클라이언트 API 호출에서 Authorization Header를 제거하거나, 정규식으로 필터처리 과정이 필요해보임)
      * - RefreshToken 검사
      * RefreshToken이 null이 아니라면, refreshToken에서 email을 추출한 후, 추출한 이메일이 정상적인 사용자의 이메일인지 확인한 후
      * 해당 이메일로 AccessToken, RefreshToken을 재생성 및 발급 수행한다.
@@ -59,23 +61,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        if(request.getRequestURI().equals(NO_CHECK_URL)) {
-            filterChain.doFilter(request,response);
-            return;
-        }
-
-        String refreshToken = jwtService.getRefreshTokenFromHeader(request)
-                .filter(jwtService::validateToken)
-                .orElse(null);
-
-        if(refreshToken != null) {
-            if(jwtService.isEqualsRefreshToken(refreshToken)) {
-                checkRefreshTokenAndReIssueToken(response, refreshToken);
-            } else {
-                jwtService.deleteRefreshTokenByRefreshToken(refreshToken);
-                deleteAuthentication();
+        for(String url : NO_CHECK_URL) {
+            if(request.getRequestURI().equals(url)) {
+                filterChain.doFilter(request,response);
+                return;
             }
-            return;
         }
 
         checkAccessTokenAndAuthentication(request,response,filterChain);
@@ -83,12 +73,65 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     /**
      * Filter에서 RefreshToken이 null인 경우, AccessToken으로 인증을 수행하는 것으로 AccessToken의 유효성 검사 후,
-     * AccessToken에서 email을 추출하고 해당 이메일이 존재하는 이메일인지 검사하고 이메일에 해당하는 RefreshToken이 존재하는지 여부를 확인 후,
+     * AccessToken에서 email을 추출하고 해당 이메일이 존재하는 이메일인지 검사0하고 이메일에 해당하는 RefreshToken이 존재하는지 여부를 확인 후,
      * 이메일을 사용하는 사용자의 이메일을 SecurityContextHolder에 Authentication을 등록하여 인증을 수행한다.
      *
      * email에 해당하는 RefreshToken이 존재하지 않거나, email에 해당하는 사용자가 없거나, AccessToken에서 email을 추출했을 때 없거나,
      * AccessToken이 유효하지 않은 경우, Authentication을 등록하지 않는다.
      *
+     * JWT AccessToken의 유효성 검사하여 유효하지 않은 경우, 401 에러를 클라이언트에게 반환하여 refreshToken과 함께 /api/jwt/reissue-token을 요청하여
+     * RefreshToken이 유효하면 새로운 AccessToken과 RefreshToken을 클라이언트에게 전달하는 로직이다.
+     *
+     * 이때, 유효하지 않은 JWT AccessToken인 경우, AuthenticationEntryPoint에서 인증되지 않은 사용자로 판단하여 401 에러 반환
+     *
+     * AuthenticationEntryPoint에 진입 조건
+     * -> 인증이 필요한 API 요청에 미인증 사용자가 요청하는 경우 = Spring ContextHolder의 Authentication == null
+     *
+     * 만약, AccessToken이 유효하지 않아서 클라이언트 측에서 API호출로 JWT를 갱신하는 방법이 아닌 백엔드 서버에서 AccessToken의 유효성을 검사하고 유효하지 않다면
+     * cookie값을 직접 가져와 유효성 및 DB에 존재하는 RefreshToken인지 확인 후, AccessToken과 RefreshToken을 Header, Cookie에 각각 response로 전달하고,
+     * request에서 요청으로 들어온 uri를 redirect시키는 방법도 존재한다.
+     *
+     * 하지만, 새로 발급한 AccessToken의 경우 header로 보낸 후, 클라이언트 측에서 localStorage에 저장하고 추가 API 요청마다 Header에 담아서 보내야 하는데
+     * redirect를 수행하게 되면 새로 발급한 AccessToken을 저장할 방법이 없다.
+     *
+     * 따라서, 아래 방법은 잘못된 방법이라고 생각한다.
+     * (이러한 방식으로 백엔드에서 처리하는 방법이 있지만 아직 내가 모르는 것일 수 있다.)
+     *
+     * Optional<String> optionalRefreshToken = jwtService.getRefreshTokenFromCookie(request);
+     *
+     * if(optionalRefreshToken.isPresent()) {
+     *     String refreshToken = optionalRefreshToken.get();
+     *
+     *     if(!jwtService.validateToken(refreshToken)) {
+     *         jwtService.extractEmailFromToken(refreshToken)
+     *                 .ifPresent(email -> {
+     *                     jwtService.sendAccessTokenByHeader(response, jwtService.createAccessToken(email));
+     *                     jwtService.sendRefreshTokenByCookie(request, response, jwtService.createRefreshToken(email));
+     *                 });
+     *         response.sendRedirect(request.getRequestUri()); // AccessToken Header를 받을 수 없기 때문에
+     *     }
+     * }
+     *
+     * 결론
+     * 1. response의 status Code를 401로 설정하고 클라이언트 응답 수행
+     * 2. AuthenticationEntryPoint를 이용하여 예외를 발생시켜 토큰 재발급을 수행
+     * 3. JwtAuthenticationFilter 이전에 JwtExceptionFiller를 추가하여 예외처리를 수행하고 예외를 발생시켜 토큰 재발급 API를 호출하도록 요청
+     * 4. 백엔드 서버에서 accessToken의 유효하지 않음을 검사하고 refreshToken을 쿠키에서 추출하여 유효성에 따라 재발급을 수행해서 재발급한 refreshToken은
+     *     Cookie에 저장하고, accessToken은 Header로 넘기는 것이 아닌 redirect uri의 param으로 api-uri?token="accessToken-value"로 보내고
+     *     각 페이지마다 uri에 token param 존재 여부에 따라 localStorage에 저장하는 token.js를 추가하는 방법
+     *     token.js
+     *     const token = searchParam('token');
+     *
+     *     if(token) {
+     *         localStorage.setItem("Authorization", token);
+     *     }
+     *
+     *     function searchParam(key) {
+     *         return new URLSearchParams(location.search).get(key);
+     *     }
+     *
+     * 백엔드 서버에서 JWT 인증 예외가 발생한 API인 경우,JWT 재발급 과정만 수행하고 이전에 요청한 API는 클라이언트에서
+     * 재요청하는 형식으로 로직을 구성하는 것이 좋다고 생각하기 때문에 3번 과정으로 구현하였다.
      * @param request
      * @param response
      * @param filterChain
@@ -96,32 +139,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * @throws IOException
      */
     public void checkAccessTokenAndAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        jwtService.getAccessTokenFromHeader(request)
-                .filter(jwtService::validateToken)
-                .flatMap(accessToken -> jwtService.extractEmailFromToken(accessToken)
-                .flatMap(memberRepository::findByEmail))
-                .flatMap(member -> jwtService.getRefreshTokenFromRedisThroughEmail(member.getEmail()))
-                .ifPresent(refreshToken -> saveAuthentication(jwtService.extractEmailFromToken(refreshToken).get()));
+        Optional<String> optionalAccessToken = jwtService.getAccessTokenFromHeader(request);
 
-        filterChain.doFilter(request,response);
+        if(optionalAccessToken.isPresent()) {
+            String accessToken = optionalAccessToken.get();
 
-        /*
-        String accessToken = jwtService.getAccessTokenFromHeader(request)
-                .filter(jwtService::validateToken)
-                .orElse(null);
-
-        if(accessToken != null) {
-            try {
-                jwtService.extractEmailFromToken(accessToken)
-                        .ifPresent(this::saveAuthentication);
-            } catch (Exception e) {
-                log.error(e.getMessage());
+            if(!jwtService.validateToken(accessToken)) {
+                log.error("유효한 JWT 토큰이 아닙니다.");
                 return;
             }
-        } else {
-            log.info("Token is Null");
+
+            jwtService.extractEmailFromToken(accessToken)
+                    .flatMap(memberRepository::findByEmail)
+                    .flatMap(member -> jwtService.getRefreshTokenFromRedisThroughEmail(member.getEmail()))
+                    .ifPresent(refreshToken -> saveAuthentication(jwtService.extractEmailFromToken(refreshToken).get()));
         }
-         */
+
+        filterChain.doFilter(request, response);
     }
 
     /**
@@ -131,9 +165,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * 2. credential(보통 비밀번호를 의미, 인증 시에는 null로 제거)
      * 3. Authorities로 Collection < ? extends GrantedAuthority>의 타입으로 유저의 권한을 저장하고 있다.
      *
-     * SecurityContextHolder에 저장 만들어진 Authentication = UsernamePasswordAuthenticationToken을 저장한다.
+     * 현재 SecurityContextHolder를 비우고 만들어진 Authentication = UsernamePasswordAuthenticationToken을 저장한다.
      * 이후, Controller에서 @AuthneitcationPrincipal을 통해 전역적으로 인증된 Authentication 객체로서 사용된다.
-     *
      * @param email
      */
     public void saveAuthentication(String email) {
@@ -143,31 +176,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 userDetails, null, userDetails.getAuthorities()
         );
 
+        jwtService.clearAuthentication();
+
         SecurityContextHolder.getContext().setAuthentication(authentication);
-    }
-
-    /**
-     * Header에 RefreshToken이 존재하면 수행하는 메서드로, RefreshToken에서 email을 추출하여 이메일에 해당하는 사용자가 존재하는지
-     * 확인 후, AccessToken, RefreshToken을 재생성한 후, Redis DB에 업데이트하고 클라이언트에게 재발급한다.
-     *
-     * @param response
-     * @param refreshToken
-     */
-    public void checkRefreshTokenAndReIssueToken(HttpServletResponse response, String refreshToken) {
-        String email = jwtService.extractEmailFromToken(refreshToken).get();
-
-        memberRepository.findByEmail(email)
-                .ifPresent(member -> {
-                    String reIssuedRefreshToken = jwtService.reIssuedRefreshToken(email);
-                    String reIssuedAccessToken = jwtService.createAccessToken(email,member.getRole());
-                    jwtService.sendAccessTokenAndRefreshToken(response, reIssuedAccessToken, reIssuedRefreshToken);
-                });
-    }
-
-    /**
-     * 현재 SecurityContextHolder를 비운다.
-     */
-    public void deleteAuthentication() {
-        SecurityContextHolder.clearContext();
     }
 }
