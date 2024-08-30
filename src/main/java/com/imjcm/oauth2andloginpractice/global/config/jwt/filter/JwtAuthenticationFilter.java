@@ -34,22 +34,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     /**
      * "/login","/api/jwt/reissue-token"에 해당하는 요청인 경우, 해당 필터를 거치지 않고 다음 필터로 이동
      * (예외 API가 많아질 경우, 클라이언트 API 호출에서 Authorization Header를 제거하거나, 정규식으로 필터처리 과정이 필요해보임)
-     * - RefreshToken 검사
-     * RefreshToken이 null이 아니라면, refreshToken에서 email을 추출한 후, 추출한 이메일이 정상적인 사용자의 이메일인지 확인한 후
-     * 해당 이메일로 AccessToken, RefreshToken을 재생성 및 발급 수행한다.
-     *
-     * null이라면, checkAcessTokenAndAuthentication()을 수행한다.
      *
      * - checkAccessTokenAndAuthentication()
-     * 그외 요창인 경우, request로부터 AccessToken을 추출한다.
+     * 그외 요청인 경우, request의 header로부터 AccessToken을 추출한다.
+     *
+     * AccessToken이 존재하면, Cookie에서 RefreshToken을 추출하고 RefreshToken이 존재하면
+     * Redis에서 RefreshToken이 존재하는지 확인한다.
+     *
      * 추출한 AccessToken에서 validateToken을 거쳐 토큰 유효성 검사를 수행한다.
-     * AccessToken이 없거나, 유효성 검사에 실패한 경우 null을 반환하고 다음 필터로 이동한다.
+     * AccessToken이 없거나, 유효성 검사에 실패한 경우, 해당 필터를 종료한다.
      *
      * 토큰이 null이 아닌 경우, token으로부터 Claim을 추출하고, claims에서 email을 추출하고 이메일이 존재할 경우,
      * saveAuthentication(email)을 수행한다.
      *
-     * 토큰이 null인 경우, 다음 필터로 넘어가더라도, Authentication을 요구하는 API인 경우, 해당 메서드에서
-     * 에러가 발생할 것이다.
+     * 토큰이 null인 경우, 다음 필터로 넘어가더라도, Authentication을 요구하는 API인 경우, AuthenticaitonEntryPoint에서
+     * 핸들링되어 401 response를 전달한다.
      *
      * 위 과정을 모두 마친 후, 해당 필터에서 다음 필터로 이동시킨다.(filterChain.doFilter(req,res))
      *
@@ -68,12 +67,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
 
-        checkAccessTokenAndAuthentication(request,response,filterChain);
+        checkAccessTokenRefreshTokenAndAuthentication(request,response,filterChain);
     }
 
     /**
      * Filter에서 RefreshToken이 null인 경우, AccessToken으로 인증을 수행하는 것으로 AccessToken의 유효성 검사 후,
-     * AccessToken에서 email을 추출하고 해당 이메일이 존재하는 이메일인지 검사0하고 이메일에 해당하는 RefreshToken이 존재하는지 여부를 확인 후,
+     * AccessToken에서 email을 추출하고 해당 이메일이 존재하는 이메일인지 검사하고 이메일에 해당하는 RefreshToken이 존재하는지 여부를 확인 후,
      * 이메일을 사용하는 사용자의 이메일을 SecurityContextHolder에 Authentication을 등록하여 인증을 수행한다.
      *
      * email에 해당하는 RefreshToken이 존재하지 않거나, email에 해당하는 사용자가 없거나, AccessToken에서 email을 추출했을 때 없거나,
@@ -82,7 +81,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * JWT AccessToken의 유효성 검사하여 유효하지 않은 경우, 401 에러를 클라이언트에게 반환하여 refreshToken과 함께 /api/jwt/reissue-token을 요청하여
      * RefreshToken이 유효하면 새로운 AccessToken과 RefreshToken을 클라이언트에게 전달하는 로직이다.
      *
-     * 이때, 유효하지 않은 JWT AccessToken인 경우, AuthenticationEntryPoint에서 인증되지 않은 사용자로 판단하여 401 에러 반환
+     * 이때, 유효하지 않은 JWT AccessToken이거나 refreshToken이 없는 경우, AuthenticationEntryPoint에서 인증되지 않은 사용자로 판단하여 401 에러 반환
      *
      * AuthenticationEntryPoint에 진입 조건
      * -> 인증이 필요한 API 요청에 미인증 사용자가 요청하는 경우 = Spring ContextHolder의 Authentication == null
@@ -138,23 +137,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * @throws ServletException
      * @throws IOException
      */
-    public void checkAccessTokenAndAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+    public void checkAccessTokenRefreshTokenAndAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         Optional<String> optionalAccessToken = jwtService.getAccessTokenFromHeader(request);
 
         if(optionalAccessToken.isPresent()) {
             String accessToken = optionalAccessToken.get();
+            String refreshToken = jwtService.getRefreshTokenFromCookie(request).orElse(null);
 
-            if(!jwtService.validateToken(accessToken)) {
-                log.error("유효한 JWT 토큰이 아닙니다.");
-                return;
+            if(refreshToken != null) {
+                if(!jwtService.isEqualsRefreshToken(refreshToken)) {
+                    /*
+                        AccessToken은 유효하지만, RefreshToken이 Redis Value와 다르거나 null
+                        즉, 이전에 사용된 refreshToken을 사용
+                     */
+                           
+                }
+
+                if(!jwtService.validateToken(accessToken)) {
+                    log.error("유효한 JWT 토큰이 아닙니다.");
+                    return;
+                }
+
+                jwtService.extractEmailFromToken(accessToken)
+                        .flatMap(memberRepository::findByEmail)
+                        .ifPresent(member -> saveAuthentication(member.getEmail()));
             }
-
-            jwtService.extractEmailFromToken(accessToken)
-                    .flatMap(memberRepository::findByEmail)
-                    .flatMap(member -> jwtService.getRefreshTokenFromRedisThroughEmail(member.getEmail()))
-                    .ifPresent(refreshToken -> saveAuthentication(jwtService.extractEmailFromToken(refreshToken).get()));
         }
-
         filterChain.doFilter(request, response);
     }
 
