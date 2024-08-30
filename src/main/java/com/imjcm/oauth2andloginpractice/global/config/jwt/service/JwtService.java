@@ -157,7 +157,7 @@ public class JwtService {
         */
         return Optional.ofNullable(request.getHeader(accessTokenHeader))
                 .filter(accessToken -> accessToken.startsWith(BEARER_PREFIX))
-                .map(accessTokenHeader -> accessTokenHeader.replace(BEARER_PREFIX,""));
+                .map(accessToken -> accessToken.replace(BEARER_PREFIX,""));
     }
 
     /**
@@ -226,7 +226,7 @@ public class JwtService {
      * @param refreshToken
      */
     public void updateRefreshToken(String email, String refreshToken) {
-        redisTemplate.opsForValue().set(email,removeBearerPrefixFromToken(refreshToken));
+        redisTemplate.opsForValue().set(email,refreshToken.replace(BEARER_PREFIX,""));
     }
 
     /**
@@ -280,14 +280,5 @@ public class JwtService {
     public void clearAuthentication() {
         SecurityContextHolder.clearContext();
 
-    }
-
-    /**
-     * Bearer + Token에서 Bearer 제거하여 token 값 반환
-     * @param token
-     * @return
-     */
-    public String removeBearerPrefixFromToken(String token) {
-        return token.replace(BEARER_PREFIX,"");
     }
 }
