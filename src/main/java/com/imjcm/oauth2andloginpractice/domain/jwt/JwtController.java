@@ -36,7 +36,7 @@ public class JwtController {
         String token = URLDecoder.decode(jwtRequest.getRefreshToken(), StandardCharsets.UTF_8)
                 .replace(JwtService.BEARER_PREFIX,"");
 
-        if(jwtService.validateToken(token)) {
+        if(jwtService.validateToken(token) && jwtService.isEqualsRefreshToken(token)) {
             String email = jwtService.extractEmailFromToken(token).orElse(null);
 
             String accessToken = jwtService.createAccessToken(email);
