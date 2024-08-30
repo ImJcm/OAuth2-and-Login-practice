@@ -1,6 +1,5 @@
 package com.imjcm.oauth2andloginpractice.jwt.SpringBootTest;
 
-import com.imjcm.oauth2andloginpractice.global.common.Role;
 import com.imjcm.oauth2andloginpractice.global.config.jwt.service.JwtService;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -8,8 +7,6 @@ import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
