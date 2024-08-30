@@ -137,7 +137,7 @@ public class SecurityConfig {
      *   authenticationConfiguration은 인증을 위한 설정을 담고 있으며 AuthenticationManager로 사용될 수 있다.
      *   ObjectMapper를 인자로 받는다
      *      - ObjectMapper : username(email), password를 전달하여 JSON 형태로 매핑하기 위함
-     *   AuthenticationFilter를 적용할 url을 설정한다. (url = "/api/member/login")
+     *   AuthenticationFilter를 적용할 url을 설정한다. (url = "/login") - default와 같아서 설정 안해도 상관 x
      *      - UsernamePasswordAuthenticationFilter의 default Url = (/login, POST)
      *      - setFilterProcessesUrl()로 지정할 경우, url만 지정, Method = null로 설정됨.
      *          - login의 경우, POST만 넘어오는 경우가 암묵적으로 정해진 룰이라고 생각한다.
@@ -171,7 +171,7 @@ public class SecurityConfig {
      */
     @Bean
     public LoginSuccessHandler loginSuccessHandler() {
-        return new LoginSuccessHandler(jwtService, memberRepository);
+        return new LoginSuccessHandler(jwtService);
     }
 
     /**
