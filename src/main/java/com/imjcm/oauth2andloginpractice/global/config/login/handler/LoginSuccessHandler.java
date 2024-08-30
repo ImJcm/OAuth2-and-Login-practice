@@ -18,7 +18,6 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
     private final JwtService jwtService;
-    private final MemberRepository memberRepository;
 
     @Value("${jwt.access.expiration}")
     private String accessTokenExpiration;
@@ -28,7 +27,8 @@ public class LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     /**
      * UsernamePasswordAuthenticationFilter로 부터 인증을 마친 후, 인증이 성공할 경우 로직을 처리하는 onAuthenticationSuccess 메서드 수행한다.
-     * AccessToken, RefreshToken을 생성한 후, Header를 통해 token을 전달한다.
+     * AccessToken, RefreshToken을 생성한 후, Header, Cookie를 통해 token을 전달한다.
+     *
      * @param request
      * @param response
      * @param authentication
@@ -42,13 +42,10 @@ public class LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
         String accessToken = jwtService.createAccessToken(email);
         String refreshToken = jwtService.createRefreshToken(email);
 
-        memberRepository.findByEmail(email)
-                        .ifPresent(member ->
-                            jwtService.updateRefreshToken(email, refreshToken)
-                        );
+        jwtService.updateRefreshToken(email, refreshToken);
 
         jwtService.clearAuthentication();
-        super.clearAuthenticationAttributes(request);
+        //super.clearAuthenticationAttributes(request);
 
         jwtService.sendAccessTokenAndRefreshToken(request, response, accessToken, refreshToken);
 
