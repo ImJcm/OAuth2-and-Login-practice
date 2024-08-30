@@ -23,7 +23,13 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
     private static final String REDIRECT_URL = "/home";
 
     /**
+     * oAuth2 로그인 성공 시, 수행하는 메서드
+     * DefaultOAuth2User를 상속한 CustomOAuth2Member를 authentication.getPrincipal()을 통해 받는다.
+     * email을 추출하고, AccessToken, RefreshToken을 생성한다.
      *
+     * redirect 시, header를 통해 전달은 불가능하므로 parameter를 통해 accessToken을 전달하고, Cookie를 통해 RefreshToken을 저장한다.
+     *
+     * 클라이언트에서 param으로 전달된 AccessToken을 저장한다.
      * @param request
      * @param response
      * @param authentication
@@ -47,7 +53,7 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
             jwtService.updateRefreshToken(email, refreshToken);
 
             jwtService.clearAuthentication();
-            super.clearAuthenticationAttributes(request);
+            //super.clearAuthenticationAttributes(request);
 
             DefaultRedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
 
@@ -56,6 +62,12 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
             throw e;
         }
     }
+
+    /**
+     * redirect_uri + token Parameter uri를 생성하는 메서드
+     * @param token
+     * @return
+     */
 
     private String getTargetUrl(String token) {
         return UriComponentsBuilder.fromUriString(REDIRECT_URL)
