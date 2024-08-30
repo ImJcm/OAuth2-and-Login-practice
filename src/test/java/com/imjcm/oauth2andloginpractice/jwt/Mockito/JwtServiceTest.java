@@ -1,10 +1,12 @@
 package com.imjcm.oauth2andloginpractice.jwt.Mockito;
 
-import com.imjcm.oauth2andloginpractice.global.common.Role;
 import com.imjcm.oauth2andloginpractice.global.config.jwt.service.JwtService;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,9 +21,10 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.w3c.dom.ls.LSOutput;
 
 import javax.crypto.SecretKey;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -39,11 +42,10 @@ public class JwtServiceTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
 
-    //private String jwt_token;
     private SecretKey key;
     private String secretKey;
-    private Long accessTokenExpirationsPeriod;
-    private Long refreshTokenExpirationsPeriod;
+    private int accessTokenExpirationsPeriod;
+    private int refreshTokenExpirationsPeriod;
     private String accessTokenHeader;
     private String refreshTokenHeader;
     public String BEARER_PREFIX;
@@ -54,18 +56,18 @@ public class JwtServiceTest {
         // Mocking한 jwtService의 @Value로 설정된 변수에 값을 전달
         ReflectionTestUtils.setField(jwtService, "secretKey","amNtLW9hdXRoMi9jdXN0b21Mb2dpbkZpbHRlciBQcm9qZWN0");
         ReflectionTestUtils.setField(jwtService, "accessTokenHeader","Authorization");
-        ReflectionTestUtils.setField(jwtService, "refreshTokenHeader", "Refresh Authorization");
-        ReflectionTestUtils.setField(jwtService, "accessTokenExpirationsPeriod",1800000L);
-        ReflectionTestUtils.setField(jwtService, "refreshTokenExpirationsPeriod",3600000L);
+        ReflectionTestUtils.setField(jwtService, "refreshTokenHeader", "Refresh_Authorization");
+        ReflectionTestUtils.setField(jwtService, "accessTokenExpirationsPeriod",1800000);
+        ReflectionTestUtils.setField(jwtService, "refreshTokenExpirationsPeriod",3600000);
         ReflectionTestUtils.setField(jwtService, "key", Keys.hmacShaKeyFor(Decoders.BASE64.decode("amNtLW9hdXRoMi9jdXN0b21Mb2dpbkZpbHRlciBQcm9qZWN0")));
 
         // hard coding
         secretKey = "amNtLW9hdXRoMi9jdXN0b21Mb2dpbkZpbHRlciBQcm9qZWN0";
         key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey));
-        accessTokenExpirationsPeriod = 1800000L;
-        refreshTokenExpirationsPeriod = 3600000L;
+        accessTokenExpirationsPeriod = 1800000;
+        refreshTokenExpirationsPeriod = 3600000;
         accessTokenHeader = "Authorization";
-        refreshTokenHeader = "Refresh Authorization";
+        refreshTokenHeader = "Refresh_Authorization";
         BEARER_PREFIX = "Bearer ";
         EMAIL_CLAIMS = "email";
 
@@ -78,10 +80,9 @@ public class JwtServiceTest {
     public void createAccessTokenSuccess() throws Exception {
         // given
         String email = "testEmail";
-        Role role = Role.USER;
 
         // when
-        String token = jwtService.createAccessToken(email, role);
+        String token = jwtService.createAccessToken(email);
 
         String jwt = token.split(" ")[1];
 
@@ -121,63 +122,62 @@ public class JwtServiceTest {
         Assertions.assertThat(email).isEqualTo(emailFromRefreshToken);
     }
 
-    @DisplayName("reIssuedRefreshToken : refreshToken 재발급 성공")
+    @DisplayName("sendAccessTokenByHeader : AccessToken send 성공")
     @Test
-    public void reIssuedRefreshTokenSuccess() throws Exception {
-        // given
-        String email = "test Email";
-
-        // when
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        doNothing().when(valueOperations).set(anyString(), anyString());
-
-        String result = jwtService.reIssuedRefreshToken(email);
-
-        // then
-        verify(valueOperations, times(1)).set(anyString(), anyString());
-        Assertions.assertThat(result).startsWith(BEARER_PREFIX);
-    }
-
-    @DisplayName("sendAccessToken : AccessToken send 성공")
-    @Test
-    public void sendAccessTokenSuccess() throws Exception {
+    public void sendAccessTokenByHeaderSuccess() throws Exception {
         // given
         HttpServletResponse response = new MockHttpServletResponse();
         String token = "Test Token";
 
         // when
-        jwtService.sendAccessToken(response, token);
+        jwtService.sendAccessTokenByHeader(response, token);
 
         // then
         Assertions.assertThat(response.getStatus()).isEqualTo(MockHttpServletResponse.SC_OK);
         Assertions.assertThat(response.getHeader(accessTokenHeader)).isEqualTo(token);
     }
 
-    @DisplayName("sendRefreshToken : Header에 refreshToken 전송 성공")
+    @DisplayName("sendRefreshTokenByCookie : Cookie에 refreshToken 전송 성공")
     @Test
-    public void sendRefreshTokenSuccess() throws Exception {
+    public void sendRefreshTokenByCookieSuccess() throws Exception {
         // given
+        HttpServletRequest request = new MockHttpServletRequest();
         HttpServletResponse response = new MockHttpServletResponse();
         String token = "Test Token";
 
         // when
-        jwtService.sendRefreshToken(response, token);
+        jwtService.sendRefreshTokenByCookie(request, response, token);
 
         // then
         Assertions.assertThat(response.getStatus()).isEqualTo(MockHttpServletResponse.SC_OK);
-        Assertions.assertThat(response.getHeader(refreshTokenHeader)).isEqualTo(token);
+
+        Cookie[] cookies = ((MockHttpServletResponse) response).getCookies();
+        Cookie refreshTokenCookie = null;
+
+        for (Cookie cookie : cookies) {
+            if (cookie.getName().equals(refreshTokenHeader)) {
+                refreshTokenCookie = cookie;
+                break;
+            }
+        }
+
+        String refreshToken_value = URLDecoder.decode(refreshTokenCookie.getValue(), StandardCharsets.UTF_8).replace(BEARER_PREFIX,"");
+
+        Assertions.assertThat(refreshTokenCookie).isNotNull();
+        Assertions.assertThat(refreshToken_value).isEqualTo(token);
     }
 
     @DisplayName("sendAccessTokenAndRefreshToken : accessToken, refreshToken Header로 전송 성공")
     @Test
     public void sendAccessTokenAndRefreshToken() throws Exception {
         // given
+        HttpServletRequest request = new MockHttpServletRequest();
         HttpServletResponse response = new MockHttpServletResponse();
         String accessToken = "Test AccessToken";
         String refreshToken = "Test RefreshToken";
 
         // when
-        jwtService.sendAccessTokenAndRefreshToken(response, accessToken, refreshToken);
+        jwtService.sendAccessTokenAndRefreshToken(request, response, accessToken, refreshToken);
 
         // then
         Assertions.assertThat(response.getStatus()).isEqualTo(MockHttpServletResponse.SC_OK);
@@ -190,7 +190,7 @@ public class JwtServiceTest {
     public void getAccessTokenFromHeaderSuccess() throws Exception {
         // given
         MockHttpServletRequest request = new MockHttpServletRequest();
-        String jwt_token = jwtService.createAccessToken("testEmail@email.com",Role.USER);
+        String jwt_token = jwtService.createAccessToken("testEmail@email.com");
         String jwt_token_value = jwt_token.replace(BEARER_PREFIX, "");
 
         request.addHeader(accessTokenHeader, jwt_token);
@@ -203,18 +203,18 @@ public class JwtServiceTest {
         Assertions.assertThat(token.get()).isEqualTo(jwt_token_value);
     }
 
-    @DisplayName("getRefreshTokenFromHeader : HttpServletRequest에서 refreshToken 가져오기 성공")
+    @DisplayName("getRefreshTokenFromCookie : HttpServletRequest에서 refreshtoken 가져오기 성공")
     @Test
-    public void getRefreshTokenFromHeaderSuccess() throws Exception {
+    public void getRefreshTokenFromCookieSuccess() throws Exception {
         // given
         MockHttpServletRequest request = new MockHttpServletRequest();
         String rjwt_token = jwtService.createRefreshToken("testEmail@email.com");
-        String rjwt_token_value = rjwt_token.replace(BEARER_PREFIX, "");
+        String rjwt_token_value = URLDecoder.decode(rjwt_token, StandardCharsets.UTF_8).replace(BEARER_PREFIX, "");
 
-        request.addHeader(refreshTokenHeader, rjwt_token);
+        request.setCookies(new Cookie(refreshTokenHeader, rjwt_token));
 
         // when
-        Optional<String> token = jwtService.getRefreshTokenFromHeader(request);
+        Optional<String> token = jwtService.getRefreshTokenFromCookie(request);
 
         // then
         Assertions.assertThat(token).isNotEmpty();
@@ -225,7 +225,7 @@ public class JwtServiceTest {
     @Test
     public void validateTokenSuccess() throws Exception {
         // given
-        String jwt_token_value = jwtService.createAccessToken("testEmail@email.com",Role.USER).replace(BEARER_PREFIX, "");
+        String jwt_token_value = jwtService.createAccessToken("testEmail@email.com").replace(BEARER_PREFIX, "");
 
         // when
         boolean valid = jwtService.validateToken(jwt_token_value);
@@ -234,12 +234,25 @@ public class JwtServiceTest {
         Assertions.assertThat(valid).isEqualTo(true);
     }
 
+    @DisplayName("validateToken : jwt token 검증 실패 - JwtException 예외 발생")
+    @Test
+    public void validateTokenFailure() throws Exception, JwtException {
+        // given
+        String token = "Not valid Token";
+
+        // when & then
+        Assertions.assertThatThrownBy(() -> jwtService.validateToken(token))
+                .isInstanceOf(JwtException.class)
+                .hasMessageContaining("Invalid Jwt signature, 유효하지 않는 Jwt 서명입니다.");
+
+    }
+
     @DisplayName("extractEmailFromToken : token에서 Email 값 추출 성공")
     @Test
     public void extractEmailFromTokenSuccess() throws Exception {
         // given
         String origin_email = "testEmail@email.com";
-        String jwt_token_value = jwtService.createAccessToken(origin_email,Role.USER).replace(BEARER_PREFIX, "");
+        String jwt_token_value = jwtService.createAccessToken(origin_email).replace(BEARER_PREFIX, "");
 
         // when
         Optional<String> email = jwtService.extractEmailFromToken(jwt_token_value);
