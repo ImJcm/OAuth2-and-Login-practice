@@ -33,9 +33,6 @@ public class LoginSuccessHandlerTest {
     @Mock
     private JwtService jwtService;
 
-    @Mock
-    private MemberRepository memberRepository;
-
     @BeforeEach
     void init() {
         ReflectionTestUtils.setField(jwtService, "accessTokenExpirationsPeriod",1800000L);
@@ -65,20 +62,20 @@ public class LoginSuccessHandlerTest {
 
         String token = "jwt-token";
 
-        given(jwtService.createAccessToken(email, role))
+        given(jwtService.createAccessToken(email))
                 .willReturn(token);
 
         doAnswer(invocationOnMock -> {
             response.addHeader(jwt_Header, jwt_prefix + token);
             return null;
-        }).when(jwtService).sendAccessToken(eq(response),eq(token));
+        }).when(jwtService).sendAccessTokenByHeader(eq(response),eq(token));
 
         // when
         loginSuccessHandler.onAuthenticationSuccess(request, response, authentication);
 
         // then
-        verify(jwtService).createAccessToken(eq(email),eq(role));
-        verify(jwtService).sendAccessToken(eq(response), eq(token));
+        verify(jwtService).createAccessToken(eq(email));
+        verify(jwtService).sendAccessTokenByHeader(eq(response), eq(token));
 
         Assertions.assertThat(response.getHeader(jwt_Header)).isEqualTo(jwt_prefix + token);
     }
