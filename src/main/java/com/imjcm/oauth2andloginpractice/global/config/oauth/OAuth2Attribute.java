@@ -45,7 +45,6 @@ public class OAuth2Attribute {
                 .email(oAuth2MemberInfo.getEmail())
                 .password(PasswordUtil.generateRandomPassword())
                 .nickname(oAuth2MemberInfo.getNickname())
-                .oauthId(oAuth2MemberInfo.getId())
                 .build();
     }
 
