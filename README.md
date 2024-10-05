@@ -13,6 +13,7 @@
 <img src="https://img.shields.io/badge/OAuth2.0-3B66BC?style=flat&logo=auth0&logoColor=white">
 <img src="https://img.shields.io/badge/junit5-25A162?style=flat&logo=junit5&logoColor=white">
 <img src="https://img.shields.io/badge/MySql 8-4479a1?style=flat&logo=mysql&logoColor=white">
+<img src="https://img.shields.io/badge/Redis-FF4438?style=flat&logo=redis&logoColor=white">
 </div>
 
 ## 목적
