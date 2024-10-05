@@ -25,6 +25,7 @@ oAuth1.0와 자체 로그인을 spring security를 사용하지 않고 구현한
 - JWT Token 방식으로 AccessToken + RefreshToken을 적용
 - RefreshToken - Redis DB에 저장
 - JWT Token 재발급 시, RefreshToken Rotation 적용
+- 자체 로그인 & oAuth 로그인 Test code 작성
 - 예상 화면 (인프런 로그인 화면 참고)
 
   ![image](https://github.com/ImJcm/OAuth2-and-Login-practice/assets/51190093/7051c759-a79f-44a2-b871-1ad5902bc7c9)
