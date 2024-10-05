@@ -150,18 +150,36 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         AccessToken은 유효하지만, RefreshToken이 Redis Value와 다르거나 null
                         즉, 이전에 사용된 refreshToken을 사용
                      */
-                           
+
+                    jwtService.extractEmailFromToken(refreshToken)
+                            .ifPresent(jwtService::deleteRefreshTokenByEmail);
+
+                    response.sendRedirect("/home/login");
                 }
 
                 if(!jwtService.validateToken(accessToken)) {
-                    log.error("유효한 JWT 토큰이 아닙니다.");
-                    return;
+                    String email = jwtService.extractEmailFromToken(accessToken).orElse(null);
+
+                    if(email == null) {
+                        response.sendRedirect("/home/login");
+                    } else {
+                        String new_accessToken = jwtService.createAccessToken(email);
+                        String new_refreshToken = jwtService.createRefreshToken(email);
+
+                        jwtService.sendAccessTokenByHeader(response, new_accessToken);
+                        jwtService.updateRefreshToken(email, new_refreshToken);
+                        jwtService.sendRefreshTokenByCookie(request, response, new_refreshToken);
+                    }
                 }
 
                 jwtService.extractEmailFromToken(accessToken)
                         .flatMap(memberRepository::findByEmail)
                         .ifPresent(member -> saveAuthentication(member.getEmail()));
+            } else {
+                response.sendRedirect("/home/login");
             }
+        } else {
+            response.sendRedirect("/home/login");
         }
         filterChain.doFilter(request, response);
     }
