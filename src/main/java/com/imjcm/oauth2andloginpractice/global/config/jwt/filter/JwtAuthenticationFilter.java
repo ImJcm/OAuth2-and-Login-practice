@@ -150,7 +150,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         AccessToken은 유효하지만, RefreshToken이 Redis Value와 다르거나 null
                         즉, 이전에 사용된 refreshToken을 사용
                      */
-                           
+                    jwtService.extractEmailFromToken(refreshToken)
+                            .ifPresent(jwtService::deleteRefreshTokenByEmail);
+                    return;
                 }
 
                 if(!jwtService.validateToken(accessToken)) {
